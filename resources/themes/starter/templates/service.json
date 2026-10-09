@@ -1,0 +1,16 @@
+{
+  "sections": [
+    {"type": "hero"},
+    {"type": "content"},
+    {
+      "type": "columns",
+      "columns": 3,
+      "items": [
+        {"heading": "Explain your needs", "text": "Tell the team what you need help with."},
+        {"heading": "Review the scope", "text": "Discuss the work, responsibilities and fees."},
+        {"heading": "Confirm next steps", "text": "Agree how work will begin and how you will receive updates."}
+      ]
+    },
+    {"type": "contact", "heading": "Speak with the team"}
+  ]
+}

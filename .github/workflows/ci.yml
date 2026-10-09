@@ -1,0 +1,59 @@
+# Author: ramanpal singh | URL: https://kwebby.com
+name: LawyerCMS contracts
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        database: [mysql, pgsql]
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: counsel_contract_test
+          MYSQL_ROOT_PASSWORD: testing-only
+        ports: ['3306:3306']
+        options: --health-cmd="mysqladmin ping -ptesting-only" --health-interval=10s --health-timeout=5s --health-retries=10
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: counsel_contract_test
+          POSTGRES_PASSWORD: testing-only
+        ports: ['5432:5432']
+        options: --health-cmd="pg_isready -U postgres" --health-interval=10s --health-timeout=5s --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: bcmath, curl, dom, fileinfo, gd, intl, mbstring, openssl, pdo_mysql, pdo_pgsql, sodium, xml, zip
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: composer install --prefer-dist --no-interaction
+      - run: cp .env.example .env && php artisan key:generate --no-interaction
+      - run: npm ci && npm run build && npm test
+      - run: php artisan test --compact
+        env:
+          DB_CONNECTION: ${{ matrix.database }}
+          DB_HOST: 127.0.0.1
+          DB_PORT: ${{ matrix.database == 'mysql' && '3306' || '5432' }}
+          DB_DATABASE: counsel_contract_test
+          DB_USERNAME: ${{ matrix.database == 'mysql' && 'root' || 'postgres' }}
+          DB_PASSWORD: testing-only
+      - run: php artisan test --compact tests/Feature/Business/FinanceConcurrencyTest.php
+        env:
+          RUN_FINANCE_CONCURRENCY: '1'
+          DB_CONNECTION: ${{ matrix.database }}
+          DB_HOST: 127.0.0.1
+          DB_PORT: ${{ matrix.database == 'mysql' && '3306' || '5432' }}
+          DB_DATABASE: counsel_contract_test
+          DB_USERNAME: ${{ matrix.database == 'mysql' && 'root' || 'postgres' }}
+          DB_PASSWORD: testing-only
+      - run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+      - run: composer audit && npm audit --audit-level=high

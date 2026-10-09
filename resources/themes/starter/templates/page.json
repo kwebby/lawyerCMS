@@ -1,0 +1,22 @@
+{
+  "sections": [
+    {"type": "hero"},
+    {"type": "content"},
+    {
+      "type": "columns",
+      "columns": 2,
+      "items": [
+        {"heading": "Prepare for a consultation", "text": "Bring the documents relevant to your question."},
+        {"heading": "Agree the next step", "text": "Discuss scope, communication and fees with the team."}
+      ]
+    },
+    {
+      "type": "cta",
+      "heading": "Start with a conversation",
+      "text": "Share your contact details so the team can respond.",
+      "button_label": "Request contact",
+      "button_url": "/contact-request"
+    },
+    {"type": "contact", "heading": "Contact our team"}
+  ]
+}

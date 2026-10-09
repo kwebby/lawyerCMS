@@ -1,0 +1,776 @@
+{
+  "_comment": "Author: ramanpal singh | URL: https://kwebby.com",
+  "downloaded_at": "2026-10-09",
+  "source": "https://developers.google.com/fonts/docs/css2",
+  "fonts": [
+    {
+      "id": "lora",
+      "name": "Lora",
+      "category": "serif",
+      "css_family": "'Lora', serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "styles": [
+        "normal"
+      ],
+      "languages": [
+        "latin",
+        "latin-ext"
+      ],
+      "files": [
+        {
+          "url": "/fonts/website/lora/latin-ext-400-700.woff2",
+          "subset": "latin-ext",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+          "bytes": 20088,
+          "sha256": "2a2d9c22c9863086a23f5013fede1428585321812b25f2662542c39d02967c5e",
+          "source_url": "https://fonts.gstatic.com/s/lora/v37/0QIvMX1D_JOuMwT7I-NP.woff2"
+        },
+        {
+          "url": "/fonts/website/lora/latin-400-700.woff2",
+          "subset": "latin",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+          "bytes": 37788,
+          "sha256": "ddb8c66035104e233fc024669183aad3738b6daa16deee2ebb1241bd0f98ace1",
+          "source_url": "https://fonts.gstatic.com/s/lora/v37/0QIvMX1D_JOuMwr7Iw.woff2"
+        }
+      ],
+      "license": "OFL-1.1",
+      "license_url": "/fonts/website/lora/OFL.txt",
+      "license_source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/lora/OFL.txt",
+      "source_url": "https://fonts.google.com/specimen/Lora",
+      "self_hosted": true
+    },
+    {
+      "id": "libre-baskerville",
+      "name": "Libre Baskerville",
+      "category": "serif",
+      "css_family": "'Libre Baskerville', serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "styles": [
+        "normal"
+      ],
+      "languages": [
+        "latin",
+        "latin-ext"
+      ],
+      "files": [
+        {
+          "url": "/fonts/website/libre-baskerville/latin-ext-400-700.woff2",
+          "subset": "latin-ext",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+          "bytes": 35468,
+          "sha256": "8f7537ce3a6c1c0d0e93a9530432df13953312d378713a059e9a6cf0d0cde8b9",
+          "source_url": "https://fonts.gstatic.com/s/librebaskerville/v24/kmKnZrc3Hgbbcjq75U4uslyuy4kn0qNXaxMICA.woff2"
+        },
+        {
+          "url": "/fonts/website/libre-baskerville/latin-400-700.woff2",
+          "subset": "latin",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+          "bytes": 33872,
+          "sha256": "22219fb90e3b9bd28debd1825fe8d9a0154a0e31f8b3fa601ac1a0a5aa5e6d1b",
+          "source_url": "https://fonts.gstatic.com/s/librebaskerville/v24/kmKnZrc3Hgbbcjq75U4uslyuy4kn0qNZaxM.woff2"
+        }
+      ],
+      "license": "OFL-1.1",
+      "license_url": "/fonts/website/libre-baskerville/OFL.txt",
+      "license_source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/librebaskerville/OFL.txt",
+      "source_url": "https://fonts.google.com/specimen/Libre%20Baskerville",
+      "self_hosted": true
+    },
+    {
+      "id": "playfair-display",
+      "name": "Playfair Display",
+      "category": "serif",
+      "css_family": "'Playfair Display', serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "styles": [
+        "normal"
+      ],
+      "languages": [
+        "latin",
+        "latin-ext"
+      ],
+      "files": [
+        {
+          "url": "/fonts/website/playfair-display/latin-ext-400-700.woff2",
+          "subset": "latin-ext",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+          "bytes": 21140,
+          "sha256": "42898ad49a6b23f32b109243e1df596edf831015ed685f429e4dafbb181d599d",
+          "source_url": "https://fonts.gstatic.com/s/playfairdisplay/v40/nuFiD-vYSZviVYUb_rj3ij__anPXDTLYgFE_.woff2"
+        },
+        {
+          "url": "/fonts/website/playfair-display/latin-400-700.woff2",
+          "subset": "latin",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+          "bytes": 38404,
+          "sha256": "e0c764a8e9e1cce92163c55bac4b2ad6cd4cf8c696ce2289ab5c41565e65b7e2",
+          "source_url": "https://fonts.gstatic.com/s/playfairdisplay/v40/nuFiD-vYSZviVYUb_rj3ij__anPXDTzYgA.woff2"
+        }
+      ],
+      "license": "OFL-1.1",
+      "license_url": "/fonts/website/playfair-display/OFL.txt",
+      "license_source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/playfairdisplay/OFL.txt",
+      "source_url": "https://fonts.google.com/specimen/Playfair%20Display",
+      "self_hosted": true
+    },
+    {
+      "id": "merriweather",
+      "name": "Merriweather",
+      "category": "serif",
+      "css_family": "'Merriweather', serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "styles": [
+        "normal"
+      ],
+      "languages": [
+        "latin",
+        "latin-ext"
+      ],
+      "files": [
+        {
+          "url": "/fonts/website/merriweather/latin-ext-400-700.woff2",
+          "subset": "latin-ext",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+          "bytes": 74960,
+          "sha256": "8ca0880997847953a13964d6769b6712c57aa2dc2f881f4e6e805719791daed8",
+          "source_url": "https://fonts.gstatic.com/s/merriweather/v33/u-4e0qyriQwlOrhSvowK_l5UcA6zuSYEqOzpPe3HOZJ5eX1WtLaQwmYiSeqkJ-mFqA.woff2"
+        },
+        {
+          "url": "/fonts/website/merriweather/latin-400-700.woff2",
+          "subset": "latin",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+          "bytes": 97548,
+          "sha256": "4fbe8dd9c23b1fd62a988bb8a69b8e692d810f773d9ef6ebca2ba2760c7b11ee",
+          "source_url": "https://fonts.gstatic.com/s/merriweather/v33/u-4e0qyriQwlOrhSvowK_l5UcA6zuSYEqOzpPe3HOZJ5eX1WtLaQwmYiSeqqJ-k.woff2"
+        }
+      ],
+      "license": "OFL-1.1",
+      "license_url": "/fonts/website/merriweather/OFL.txt",
+      "license_source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/merriweather/OFL.txt",
+      "source_url": "https://fonts.google.com/specimen/Merriweather",
+      "self_hosted": true
+    },
+    {
+      "id": "source-serif-4",
+      "name": "Source Serif 4",
+      "category": "serif",
+      "css_family": "'Source Serif 4', serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "styles": [
+        "normal"
+      ],
+      "languages": [
+        "latin",
+        "latin-ext"
+      ],
+      "files": [
+        {
+          "url": "/fonts/website/source-serif-4/latin-ext-400-700.woff2",
+          "subset": "latin-ext",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+          "bytes": 42212,
+          "sha256": "d10ccbbd0dc4ebae2938958dc1f622a53460fe297e9c958564742dd684309c3f",
+          "source_url": "https://fonts.gstatic.com/s/sourceserif4/v15/vEFF2_tTDB4M7-auWDN0ahZJW3IX2ih5nk3AucvUHf6kA3r4cXk.woff2"
+        },
+        {
+          "url": "/fonts/website/source-serif-4/latin-400-700.woff2",
+          "subset": "latin",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+          "bytes": 50936,
+          "sha256": "382475f38242c52d42a3e5ff8dc69b5d73f10d0d21e4550b5fe232984688779a",
+          "source_url": "https://fonts.gstatic.com/s/sourceserif4/v15/vEFF2_tTDB4M7-auWDN0ahZJW3IX2ih5nk3AucvUHf6kDXr4.woff2"
+        }
+      ],
+      "license": "OFL-1.1",
+      "license_url": "/fonts/website/source-serif-4/OFL.txt",
+      "license_source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/sourceserif4/OFL.txt",
+      "source_url": "https://fonts.google.com/specimen/Source%20Serif%204",
+      "self_hosted": true
+    },
+    {
+      "id": "crimson-pro",
+      "name": "Crimson Pro",
+      "category": "serif",
+      "css_family": "'Crimson Pro', serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "styles": [
+        "normal"
+      ],
+      "languages": [
+        "latin",
+        "latin-ext"
+      ],
+      "files": [
+        {
+          "url": "/fonts/website/crimson-pro/latin-ext-400-700.woff2",
+          "subset": "latin-ext",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+          "bytes": 37988,
+          "sha256": "ac89a08a6e022ad4f3af961eb95474b7d8531c67ff88b40194bb3569d2d64e1d",
+          "source_url": "https://fonts.gstatic.com/s/crimsonpro/v28/q5uDsoa5M_tv7IihmnkabARVoYFoCQ.woff2"
+        },
+        {
+          "url": "/fonts/website/crimson-pro/latin-400-700.woff2",
+          "subset": "latin",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+          "bytes": 48200,
+          "sha256": "20ce4189b9e41b3439a2a36dd63deff44b6d91182532202cb96b65521b4a3c23",
+          "source_url": "https://fonts.gstatic.com/s/crimsonpro/v28/q5uDsoa5M_tv7IihmnkabARboYE.woff2"
+        }
+      ],
+      "license": "OFL-1.1",
+      "license_url": "/fonts/website/crimson-pro/OFL.txt",
+      "license_source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/crimsonpro/OFL.txt",
+      "source_url": "https://fonts.google.com/specimen/Crimson%20Pro",
+      "self_hosted": true
+    },
+    {
+      "id": "dm-sans",
+      "name": "DM Sans",
+      "category": "sans-serif",
+      "css_family": "'DM Sans', sans-serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "styles": [
+        "normal"
+      ],
+      "languages": [
+        "latin",
+        "latin-ext"
+      ],
+      "files": [
+        {
+          "url": "/fonts/website/dm-sans/latin-ext-400-700.woff2",
+          "subset": "latin-ext",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+          "bytes": 18228,
+          "sha256": "a5d38fe99f930275684999b462c7123faa063d9e44e73b4b241723d884aa0f49",
+          "source_url": "https://fonts.gstatic.com/s/dmsans/v17/rP2Yp2ywxg089UriI5-g4vlH9VoD8Cmcqbu6-K6h9Q.woff2"
+        },
+        {
+          "url": "/fonts/website/dm-sans/latin-400-700.woff2",
+          "subset": "latin",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+          "bytes": 36932,
+          "sha256": "9fea608a947e67020c33cad9a6fe3d60c54119dfb8cff87768a8117a15ed7543",
+          "source_url": "https://fonts.gstatic.com/s/dmsans/v17/rP2Yp2ywxg089UriI5-g4vlH9VoD8Cmcqbu0-K4.woff2"
+        }
+      ],
+      "license": "OFL-1.1",
+      "license_url": "/fonts/website/dm-sans/OFL.txt",
+      "license_source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/dmsans/OFL.txt",
+      "source_url": "https://fonts.google.com/specimen/DM%20Sans",
+      "self_hosted": true
+    },
+    {
+      "id": "inter",
+      "name": "Inter",
+      "category": "sans-serif",
+      "css_family": "'Inter', sans-serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "styles": [
+        "normal"
+      ],
+      "languages": [
+        "latin",
+        "latin-ext"
+      ],
+      "files": [
+        {
+          "url": "/fonts/website/inter/latin-ext-400-700.woff2",
+          "subset": "latin-ext",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+          "bytes": 85068,
+          "sha256": "34b9c504cab7a73e37b746343a449132e56cf7b5481af2cb81dc74dcff25c956",
+          "source_url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa25L7SUc.woff2"
+        },
+        {
+          "url": "/fonts/website/inter/latin-400-700.woff2",
+          "subset": "latin",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+          "bytes": 48256,
+          "sha256": "3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62",
+          "source_url": "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7.woff2"
+        }
+      ],
+      "license": "OFL-1.1",
+      "license_url": "/fonts/website/inter/OFL.txt",
+      "license_source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/inter/OFL.txt",
+      "source_url": "https://fonts.google.com/specimen/Inter",
+      "self_hosted": true
+    },
+    {
+      "id": "source-sans-3",
+      "name": "Source Sans 3",
+      "category": "sans-serif",
+      "css_family": "'Source Sans 3', sans-serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "styles": [
+        "normal"
+      ],
+      "languages": [
+        "latin",
+        "latin-ext"
+      ],
+      "files": [
+        {
+          "url": "/fonts/website/source-sans-3/latin-ext-400-700.woff2",
+          "subset": "latin-ext",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+          "bytes": 60088,
+          "sha256": "a85a7459bdb3cdc1136751e151a506bae653fc29ada3ca86237477df6f1b59e6",
+          "source_url": "https://fonts.gstatic.com/s/sourcesans3/v20/nwpStKy2OAdR1K-IwhWudF-R3wEaZfrc.woff2"
+        },
+        {
+          "url": "/fonts/website/source-sans-3/latin-400-700.woff2",
+          "subset": "latin",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+          "bytes": 28872,
+          "sha256": "19143dca075972bc84e3fd9eab7416dd40cc565dccb2435a044bdfabe060c7d5",
+          "source_url": "https://fonts.gstatic.com/s/sourcesans3/v20/nwpStKy2OAdR1K-IwhWudF-R3w8aZQ.woff2"
+        }
+      ],
+      "license": "OFL-1.1",
+      "license_url": "/fonts/website/source-sans-3/OFL.txt",
+      "license_source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/sourcesans3/OFL.txt",
+      "source_url": "https://fonts.google.com/specimen/Source%20Sans%203",
+      "self_hosted": true
+    },
+    {
+      "id": "manrope",
+      "name": "Manrope",
+      "category": "sans-serif",
+      "css_family": "'Manrope', sans-serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "styles": [
+        "normal"
+      ],
+      "languages": [
+        "latin",
+        "latin-ext"
+      ],
+      "files": [
+        {
+          "url": "/fonts/website/manrope/latin-ext-400-700.woff2",
+          "subset": "latin-ext",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+          "bytes": 15120,
+          "sha256": "3911b66d9f2e005a4b989223405d0e5032619c668597ba467cc76a23c8fffcfb",
+          "source_url": "https://fonts.gstatic.com/s/manrope/v20/xn7gYHE41ni1AdIRggmxSuXd.woff2"
+        },
+        {
+          "url": "/fonts/website/manrope/latin-400-700.woff2",
+          "subset": "latin",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+          "bytes": 24836,
+          "sha256": "a30ddcd349703aff7464c34bef3fffdff405ee50c113440d7c8693c02d210972",
+          "source_url": "https://fonts.gstatic.com/s/manrope/v20/xn7gYHE41ni1AdIRggexSg.woff2"
+        }
+      ],
+      "license": "OFL-1.1",
+      "license_url": "/fonts/website/manrope/OFL.txt",
+      "license_source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/manrope/OFL.txt",
+      "source_url": "https://fonts.google.com/specimen/Manrope",
+      "self_hosted": true
+    },
+    {
+      "id": "public-sans",
+      "name": "Public Sans",
+      "category": "sans-serif",
+      "css_family": "'Public Sans', sans-serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "styles": [
+        "normal"
+      ],
+      "languages": [
+        "latin",
+        "latin-ext"
+      ],
+      "files": [
+        {
+          "url": "/fonts/website/public-sans/latin-ext-400-700.woff2",
+          "subset": "latin-ext",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+          "bytes": 18472,
+          "sha256": "3a00a32f0242b723dcea79935747d6d27dd93675d03ef23f470dfe274e79586a",
+          "source_url": "https://fonts.gstatic.com/s/publicsans/v21/ijwRs572Xtc6ZYQws9YVwnNIfJ7Cww.woff2"
+        },
+        {
+          "url": "/fonts/website/public-sans/latin-400-700.woff2",
+          "subset": "latin",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+          "bytes": 26832,
+          "sha256": "5ed4d31c988e73b258894244f209069ebe77dc7e564861954b21198b6de90d68",
+          "source_url": "https://fonts.gstatic.com/s/publicsans/v21/ijwRs572Xtc6ZYQws9YVwnNGfJ4.woff2"
+        }
+      ],
+      "license": "OFL-1.1",
+      "license_url": "/fonts/website/public-sans/OFL.txt",
+      "license_source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/publicsans/OFL.txt",
+      "source_url": "https://fonts.google.com/specimen/Public%20Sans",
+      "self_hosted": true
+    },
+    {
+      "id": "noto-sans",
+      "name": "Noto Sans",
+      "category": "sans-serif",
+      "css_family": "'Noto Sans', sans-serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "styles": [
+        "normal"
+      ],
+      "languages": [
+        "latin",
+        "latin-ext"
+      ],
+      "files": [
+        {
+          "url": "/fonts/website/noto-sans/latin-ext-400-700.woff2",
+          "subset": "latin-ext",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+          "bytes": 167960,
+          "sha256": "6d5a79315528df191b9d86f97b0c4272a8b588fcb166773fe6588ac795de0613",
+          "source_url": "https://fonts.gstatic.com/s/notosans/v42/o-0bIpQlx3QUlC5A4PNB6Ryti20_6n1iPHjc5aDdu2ui.woff2"
+        },
+        {
+          "url": "/fonts/website/noto-sans/latin-400-700.woff2",
+          "subset": "latin",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+          "bytes": 35820,
+          "sha256": "51ca196f49a33e79e7870ff88ebd2829a3f627a51e7d690986618f0e7ad2b52d",
+          "source_url": "https://fonts.gstatic.com/s/notosans/v42/o-0bIpQlx3QUlC5A4PNB6Ryti20_6n1iPHjc5a7duw.woff2"
+        }
+      ],
+      "license": "OFL-1.1",
+      "license_url": "/fonts/website/noto-sans/OFL.txt",
+      "license_source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosans/OFL.txt",
+      "source_url": "https://fonts.google.com/specimen/Noto%20Sans",
+      "self_hosted": true
+    },
+    {
+      "id": "noto-serif",
+      "name": "Noto Serif",
+      "category": "serif",
+      "css_family": "'Noto Serif', serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "styles": [
+        "normal"
+      ],
+      "languages": [
+        "latin",
+        "latin-ext"
+      ],
+      "files": [
+        {
+          "url": "/fonts/website/noto-serif/latin-ext-400-700.woff2",
+          "subset": "latin-ext",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+          "bytes": 186552,
+          "sha256": "2654f8d1261a420fc81628122bee9d494b493227e3d7d9baa4238360b92b11d3",
+          "source_url": "https://fonts.gstatic.com/s/notoserif/v33/ga6daw1J5X9T9RW6j9bNVls-hfgvz8JcMofYTYf0D33Esw.woff2"
+        },
+        {
+          "url": "/fonts/website/noto-serif/latin-400-700.woff2",
+          "subset": "latin",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+          "bytes": 36756,
+          "sha256": "46281456234014ceb2a79bff447245de0f76b8d803be0738972ed374c3206c5b",
+          "source_url": "https://fonts.gstatic.com/s/notoserif/v33/ga6daw1J5X9T9RW6j9bNVls-hfgvz8JcMofYTYf6D30.woff2"
+        }
+      ],
+      "license": "OFL-1.1",
+      "license_url": "/fonts/website/noto-serif/OFL.txt",
+      "license_source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/notoserif/OFL.txt",
+      "source_url": "https://fonts.google.com/specimen/Noto%20Serif",
+      "self_hosted": true
+    },
+    {
+      "id": "noto-sans-devanagari",
+      "name": "Noto Sans Devanagari",
+      "category": "sans-serif",
+      "css_family": "'Noto Sans Devanagari', sans-serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "styles": [
+        "normal"
+      ],
+      "languages": [
+        "latin",
+        "latin-ext",
+        "devanagari"
+      ],
+      "files": [
+        {
+          "url": "/fonts/website/noto-sans-devanagari/devanagari-400-700.woff2",
+          "subset": "devanagari",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0900-097F, U+1CD0-1CF4, U+1CF7-1CF9, U+200C-200D, U+20A8, U+20B9, U+20F0, U+25CC, U+A830-A839, U+A8E0-A8FF, U+11B00-11B0A",
+          "bytes": 121192,
+          "sha256": "3b3cae4d2600cb502286577fcfbc7f0caa05d9bb3c28d6699aeb56302d35e730",
+          "source_url": "https://fonts.gstatic.com/s/notosansdevanagari/v30/TuG7UUFzXI5FBtUq5a8bjKYTZjtRU6Sgv3NaV_SNmI0b8QQCQmHN5TV_9qo.woff2"
+        },
+        {
+          "url": "/fonts/website/noto-sans-devanagari/latin-ext-400-700.woff2",
+          "subset": "latin-ext",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+          "bytes": 13852,
+          "sha256": "abb6f723e7ef4a6f9784d3b50533007f49609231bb872a205c2bfb6e7d43e6ee",
+          "source_url": "https://fonts.gstatic.com/s/notosansdevanagari/v30/TuG7UUFzXI5FBtUq5a8bjKYTZjtRU6Sgv3NaV_SNmI0b8QQCQmHN6jV_9qo.woff2"
+        },
+        {
+          "url": "/fonts/website/noto-sans-devanagari/latin-400-700.woff2",
+          "subset": "latin",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+          "bytes": 25384,
+          "sha256": "531d2365a3dbd2daccb336430f40be4af31203a7d3f20c12513dca3012ad572b",
+          "source_url": "https://fonts.gstatic.com/s/notosansdevanagari/v30/TuG7UUFzXI5FBtUq5a8bjKYTZjtRU6Sgv3NaV_SNmI0b8QQCQmHN5DV_.woff2"
+        }
+      ],
+      "license": "OFL-1.1",
+      "license_url": "/fonts/website/noto-sans-devanagari/OFL.txt",
+      "license_source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansdevanagari/OFL.txt",
+      "source_url": "https://fonts.google.com/specimen/Noto%20Sans%20Devanagari",
+      "self_hosted": true
+    },
+    {
+      "id": "noto-sans-gurmukhi",
+      "name": "Noto Sans Gurmukhi",
+      "category": "sans-serif",
+      "css_family": "'Noto Sans Gurmukhi', sans-serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "styles": [
+        "normal"
+      ],
+      "languages": [
+        "latin",
+        "latin-ext",
+        "gurmukhi"
+      ],
+      "files": [
+        {
+          "url": "/fonts/website/noto-sans-gurmukhi/gurmukhi-400-700.woff2",
+          "subset": "gurmukhi",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0951-0952, U+0964-0965, U+0A01-0A76, U+200C-200D, U+20B9, U+25CC, U+262C, U+A830-A839",
+          "bytes": 33824,
+          "sha256": "fc4c2bf6b7387ce4b0a6b7d38c459fb50c31680a3148c186123af49cf73b2bfa",
+          "source_url": "https://fonts.gstatic.com/s/notosansgurmukhi/v29/w8gyH3EvQP81sInb43inmyN9zZ7hb7ATbSWo4q8dJ74a3cVrSnsXn2CP.woff2"
+        },
+        {
+          "url": "/fonts/website/noto-sans-gurmukhi/latin-ext-400-700.woff2",
+          "subset": "latin-ext",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+          "bytes": 17456,
+          "sha256": "a6860f34dad091c0d5857f745ff32a2f931703cf248b6d845778c4815619bf2f",
+          "source_url": "https://fonts.gstatic.com/s/notosansgurmukhi/v29/w8gyH3EvQP81sInb43inmyN9zZ7hb7ATbSWo4q8dJ74a3cVrSlYXn2CP.woff2"
+        },
+        {
+          "url": "/fonts/website/noto-sans-gurmukhi/latin-400-700.woff2",
+          "subset": "latin",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+          "bytes": 31304,
+          "sha256": "7e170a4f479bab1536c70aa6d19b5e478715f24084d80b25da1b4e4449ce0042",
+          "source_url": "https://fonts.gstatic.com/s/notosansgurmukhi/v29/w8gyH3EvQP81sInb43inmyN9zZ7hb7ATbSWo4q8dJ74a3cVrSlgXnw.woff2"
+        }
+      ],
+      "license": "OFL-1.1",
+      "license_url": "/fonts/website/noto-sans-gurmukhi/OFL.txt",
+      "license_source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansgurmukhi/OFL.txt",
+      "source_url": "https://fonts.google.com/specimen/Noto%20Sans%20Gurmukhi",
+      "self_hosted": true
+    },
+    {
+      "id": "noto-sans-tamil",
+      "name": "Noto Sans Tamil",
+      "category": "sans-serif",
+      "css_family": "'Noto Sans Tamil', sans-serif",
+      "weights": [
+        400,
+        500,
+        600,
+        700
+      ],
+      "styles": [
+        "normal"
+      ],
+      "languages": [
+        "latin",
+        "latin-ext",
+        "tamil"
+      ],
+      "files": [
+        {
+          "url": "/fonts/website/noto-sans-tamil/tamil-400-700.woff2",
+          "subset": "tamil",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0964-0965, U+0B82-0BFA, U+200C-200D, U+20B9, U+25CC",
+          "bytes": 50468,
+          "sha256": "98e5b968b0e64d56a5833e1f8059453784190564ceeeda96613fd87282d3d8a1",
+          "source_url": "https://fonts.gstatic.com/s/notosanstamil/v31/ieVp2YdFI3GCY6SyQy1KfStzYKZgzN1z4LKDbeZce-048cFpwEFI.woff2"
+        },
+        {
+          "url": "/fonts/website/noto-sans-tamil/latin-ext-400-700.woff2",
+          "subset": "latin-ext",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF",
+          "bytes": 17272,
+          "sha256": "abf0a29196f04185752f0ff7dc4e821b4ba56ad46d1ce2f3e8f88ac1e6acdcc9",
+          "source_url": "https://fonts.gstatic.com/s/notosanstamil/v31/ieVp2YdFI3GCY6SyQy1KfStzYKZgzN1z4LKDbeZce-048dlpwEFI.woff2"
+        },
+        {
+          "url": "/fonts/website/noto-sans-tamil/latin-400-700.woff2",
+          "subset": "latin",
+          "weight": "400 700",
+          "style": "normal",
+          "unicode_range": "U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD",
+          "bytes": 31928,
+          "sha256": "b65962351491579a406cc33d9374feda885e64c516f6954ccdb2bedeef2c9124",
+          "source_url": "https://fonts.gstatic.com/s/notosanstamil/v31/ieVp2YdFI3GCY6SyQy1KfStzYKZgzN1z4LKDbeZce-048ddpwA.woff2"
+        }
+      ],
+      "license": "OFL-1.1",
+      "license_url": "/fonts/website/noto-sans-tamil/OFL.txt",
+      "license_source_url": "https://raw.githubusercontent.com/google/fonts/main/ofl/notosanstamil/OFL.txt",
+      "source_url": "https://fonts.google.com/specimen/Noto%20Sans%20Tamil",
+      "self_hosted": true
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+{{-- Author: ramanpal singh | URL: https://kwebby.com --}}
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>{{ $site['name'] }}</title></head><body><main><h1>{{ $site['name'] }}</h1><p>This website is being prepared. Publish a homepage from the firm's workspace to open the site.</p><a href="/login">Open the workspace</a></main></body></html>

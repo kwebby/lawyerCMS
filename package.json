@@ -1,0 +1,39 @@
+{
+    "name": "lawyercms",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "vite",
+        "build": "tsc --noEmit && vite build",
+        "typecheck": "tsc --noEmit",
+        "test": "vitest run"
+    },
+    "dependencies": {
+        "@blocknote/core": "0.55.0",
+        "@blocknote/react": "0.55.0",
+        "@blocknote/shadcn": "0.55.0",
+        "@inertiajs/react": "3.8.0",
+        "@radix-ui/react-dialog": "1.2.0",
+        "lucide-react": "1.54.0",
+        "react": "19.3.0",
+        "react-dom": "19.3.0"
+    },
+    "devDependencies": {
+        "@tailwindcss/vite": "4.3.3",
+        "@types/node": "26.6.4",
+        "@types/react": "19.3.0",
+        "@types/react-dom": "19.3.0",
+        "@vitejs/plugin-react": "6.1.2",
+        "laravel-vite-plugin": "3.2.0",
+        "prettier": "3.9.9",
+        "tailwindcss": "4.3.3",
+        "typescript": "7.0.2",
+        "vite": "8.3.4",
+        "vitest": "5.0.3"
+    },
+    "author": {
+        "name": "ramanpal singh",
+        "url": "https://kwebby.com"
+    }
+}

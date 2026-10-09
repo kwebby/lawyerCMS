@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "name": "LawyerCMS Starter",
+  "version": "1.0.0",
+  "renderer": 1,
+  "author": "ramanpal singh | https://kwebby.com",
+  "license": "MIT",
+  "templates": ["page", "article", "service"],
+  "supported_blocks": ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "quote", "table", "image", "file", "citation", "mergeField", "question", "pageBreak"],
+  "navigation": [
+    {"label": "Home", "url": "/"},
+    {"label": "Contact", "url": "/contact-request"},
+    {"label": "Client portal", "url": "/login"}
+  ]
+}

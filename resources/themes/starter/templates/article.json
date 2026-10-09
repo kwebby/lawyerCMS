@@ -1,0 +1,13 @@
+{
+  "sections": [
+    {"type": "hero"},
+    {"type": "content"},
+    {
+      "type": "cta",
+      "heading": "Discuss your circumstances",
+      "text": "An article provides general information. Contact the team to discuss your situation.",
+      "button_label": "Request contact",
+      "button_url": "/contact-request"
+    }
+  ]
+}

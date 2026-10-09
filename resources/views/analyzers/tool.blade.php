@@ -1,0 +1,30 @@
+{{-- Author: ramanpal singh | URL: https://kwebby.com --}}
+@php($site = $site ?? app(\App\Domain\Publishing\Seo::class)->settings()['site'])
+<!DOCTYPE html><html lang="{{ $page['locale'] ?? 'en' }}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+@if($stage === 'email' && isset($meta))
+@include('public.metadata')
+@else<title>{{ $title }} · {{ $site['name'] }}</title><meta name="robots" content="noindex,nofollow">@endif
+<style>body{margin:0;background:#f6f8fa;color:#142b40;font:16px/1.6 system-ui}header{padding:24px 7%;border-bottom:1px solid #dce4e8;background:white;display:flex;justify-content:space-between}a{color:#16736c}main{max-width:760px;margin:64px auto;padding:0 24px}h1{font:48px/1.15 Georgia,serif;margin:16px 0}h2{font:26px Georgia,serif}.eyebrow{text-transform:uppercase;letter-spacing:2px;font-size:12px;color:#16736c}.panel{padding:28px;background:white;border:1px solid #dde5e8;border-radius:12px;margin:28px 0}label{display:block;margin:14px 0 6px}input:not([type=checkbox]){box-sizing:border-box;padding:12px;border:1px solid #bbc9d1;border-radius:5px;width:100%;font:inherit}button,.button{display:inline-block;background:#16736c;color:white;border:0;border-radius:6px;padding:12px 18px;font:inherit;text-decoration:none;cursor:pointer}small{color:#596b77}pre{white-space:pre-wrap;font:inherit}.status{padding:16px;background:#edf7f1}.errors{color:#a93232}.honeypot{position:absolute;left:-10000px}</style>
+@if($stage==='email' && $enabled)<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>@endif
+</head><body><header><a href="/">{{ $site['name'] }}</a><a href="/login">Secure workspace →</a></header><main><span class="eyebrow">Understand. Prepare. Review.</span><h1>{{ $title }}</h1>
+<p>Make your first conversation with a lawyer more useful. AI can organize source material and questions; a qualified lawyer must review legal conclusions.</p>
+@if(session('status'))<p class="status">{{ session('status') }}</p>@endif
+@if($errors->any())<div class="errors">{{ $errors->first() }}</div>@endif
+@if($stage==='email')
+@if(!empty($page['summary']))<p>{{ $page['summary'] }}</p>@endif
+@if(!empty($bodyHtml))<article>{!! $bodyHtml !!}</article>@endif
+@if(!empty($page['author_name']))<small>By {{ $page['author_name'] }} · Reviewed by {{ $page['reviewer_name'] ?? '' }} · {{ $page['jurisdiction'] ?? '' }}</small>@endif
+@if(!empty($page['sources']))<details><summary>Sources</summary><ul>@foreach($page['sources'] as $source)<li><a href="{{ $source['url'] }}">{{ $source['title'] }}</a></li>@endforeach</ul></details>@endif
+<div class="panel"><h2>What you receive</h2><ul><li>A plain-language summary linked to the supplied material.</li><li>Stated dates, missing information and questions to verify.</li><li>A practical checklist for a professional consultation.</li></ul><small>Illustrative format: “The notice asks for a response by the date shown on page 2. Ask your lawyer to verify how that date applies.”</small></div>
+@if(!$enabled)<div class="panel"><h2>This tool is being prepared</h2><p>The practice must configure scanning, AI and jurisdiction review before accepting documents.</p><a href="/register">Request access to the client portal</a></div>
+@else<form method="post" action="/tools/{{ $tool }}" class="panel">@csrf<input type="hidden" name="processing_policy" value="{{ $processingPolicy }}"><h2>Start with a verified email</h2><label>Name<input name="name" required maxlength="120"></label><label>Email<input name="email" type="email" required></label><label>Jurisdiction<input name="jurisdiction" required maxlength="120" placeholder="Country and state / province"></label><label class="honeypot">Website<input name="website" tabindex="-1" autocomplete="off"></label>
+<label><input type="checkbox" name="processing_consent" value="1" required> I agree that my file will be scanned and processed by {{ $provider ?? 'the practice’s configured AI provider' }} to prepare this result.</label>
+<label><input type="checkbox" name="marketing_consent" value="1"> Send me optional practice news and resources.</label>
+<p><small>Marketing is optional. Upload and result expire after 24 hours. Submitting a document does not create a lawyer-client relationship. Upload only material you are authorized to share.</small></p><div class="cf-turnstile" data-sitekey="{{ $siteKey }}"></div><button>Send verification email</button></form>@endif
+@elseif($stage==='sent')<div class="panel"><h2>Check your email</h2><p>Open the private verification link to upload a document.</p></div>
+@elseif($stage==='upload')<form class="panel" method="post" action="/tools/upload" enctype="multipart/form-data">@csrf<h2>Upload one document</h2><p>PDF, DOCX or TXT. Maximum 10 MB and 30 PDF pages. Scanned image documents need a readable text copy.</p><input type="file" name="file" accept=".pdf,.docx,.txt" required><p>Your file stays private and is scanned before analysis.</p><button>Analyze securely</button></form>
+@elseif($stage==='result')<div class="panel"><h2>{{ $result ? 'Your preliminary analysis' : 'Analysis status' }}</h2>
+@if($result)<pre>{{ $result }}</pre><small>AI-generated preliminary output. Verify against the original document with a qualified lawyer.</small>
+@else<p>{{ $run['status']==='failed' ? 'Analysis could not complete. The file may need a readable text copy or the integration needs attention.' : 'Your document is queued for scanning and analysis. Refresh this page in a minute.' }}</p><a class="button" href="{{ request()->url() }}">Check again</a>@endif</div>
+<form method="post" action="/tools/results/{{ $run['id'] }}/consult" class="panel">@csrf<h2>Discuss this with a lawyer</h2><label><input type="checkbox" name="transfer_consent" value="1" required> Share my contact details, jurisdiction and issue category with the practice for consultation.</label><p><small>Documents are not automatically moved into a legal matter. The practice will request appropriate information during intake.</small></p><button>Request a consultation</button></form>@endif
+</main></body></html>

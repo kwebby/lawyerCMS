@@ -1,0 +1,5 @@
+# Author: ramanpal singh | URL: https://kwebby.com
+# Run as the same dedicated application user as PHP-FPM.
+* * * * * cd /srv/lawyercms/current && /usr/bin/php artisan crm:tick --budget=45 >> /srv/lawyercms/current/storage/logs/cron.log 2>&1
+# Use an external supervisor/monitor to alert if system/cron heartbeat becomes stale.
+# Daily backups need maintenance mode and the documented recovery vault procedure.

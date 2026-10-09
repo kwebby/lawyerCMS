@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Author: ramanpal singh | URL: https://kwebby.com
+set -euo pipefail
+cd "$(dirname "$0")/.."
+test -f composer.lock
+test -f package-lock.json
+npm ci
+npm run build
+npm test
+php artisan test --compact
+vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+stage="$(mktemp -d)"
+trap 'rm -rf "$stage"' EXIT
+rsync -a ./ "$stage/lawyercms/" --include=.env.example --exclude='.env*' --exclude=.git --exclude=node_modules --exclude=vendor --exclude=storage --exclude='database/*.sqlite*' --exclude=dist --exclude=.codex --exclude=.mcp.json --exclude=auth.json --exclude=.DS_Store --exclude=tests --exclude=.phpunit.result.cache --exclude=.phpunit.cache --exclude=bootstrap/cache/\*.php --exclude=AGENTS.md --exclude=CLAUDE.md --exclude=boost.json --exclude=docs/BUILD_CONTRACT.md
+mkdir -p "$stage/lawyercms/storage/"{app/private,framework/cache/data,framework/sessions,framework/views,logs}
+(
+ cd "$stage/lawyercms"
+ composer install --no-dev --prefer-dist --classmap-authoritative --no-interaction
+ composer check-platform-reqs --no-dev
+)
+mkdir -p dist
+tar -czf dist/lawyercms-0.1.0.tar.gz -C "$stage" lawyercms
+shasum -a 256 dist/lawyercms-0.1.0.tar.gz > dist/lawyercms-0.1.0.sha256
+printf 'Release archive: dist/lawyercms-0.1.0.tar.gz\n'
