@@ -142,11 +142,28 @@ final class SettingsController extends Controller
         $record = $this->store->transaction(function () use ($id, $data, $request) {
             $record = $this->store->get('users', $id);
             abort_unless($record !== null, 404);
-            if (in_array('collaborator', $data['roles'] ?? $record['roles'], true) && empty($data['access_expires_at'] ?? $record['access_expires_at'] ?? null)) {
-                $data['access_expires_at'] = now()->addDays(30)->toISOString();
+            $before = $record['roles'] ?? [];
+            $roles = $data['roles'] ?? $before;
+            $changed = array_merge(array_diff($roles, $before), array_diff($before, $roles));
+            if (array_intersect($changed, ['owner', 'admin']) || in_array('owner', $before, true)) {
+                abort_unless(in_array('owner', $request->user()->roles ?? [], true), 403, 'Only an owner can grant or remove owner or administrator access, or change an owner account.');
+            }
+            // An unverified address may belong to someone who registered another person's email; access waits for proof of the mailbox.
+            abort_if(empty($record['email_verified_at']) && array_diff(array_diff($roles, $before), ['prospect']), 422, 'This account has not verified its email address. Invite the person instead.');
+            // Collaborator access always expires; an explicit null must not clear it (?? would treat null as absent and the merge would write it).
+            if (in_array('collaborator', $roles, true) && empty($data['access_expires_at'] ?? null)) {
+                $data['access_expires_at'] = ($record['access_expires_at'] ?? null) ?: now()->addDays(30)->toISOString();
             }
             if (! empty($data['access_expires_at'])) {
                 $data['access_expires_at'] = Carbon::parse($data['access_expires_at'])->toISOString();
+            }
+            $demoted = ! in_array('owner', $roles, true) || ($data['status'] ?? $record['status'] ?? 'active') !== 'active' || ! empty($data['access_expires_at']);
+            if (in_array('owner', $before, true) && ($record['status'] ?? 'active') === 'active' && $demoted) {
+                $remaining = 0;
+                foreach ($this->store->query('users', [], 10000) as $user) {
+                    $remaining += (int) ($user['id'] !== $id && in_array('owner', $user['roles'] ?? [], true) && ($user['status'] ?? 'active') === 'active' && empty($user['access_expires_at']));
+                }
+                abort_unless($remaining > 0, 422, 'Keep at least one active owner without an access expiry.');
             }
             $record = $this->store->put('users', $id, array_merge($record, $data, ['session_epoch' => ($record['session_epoch'] ?? 0) + 1]), $record['version']);
             $this->audit->log($request->user()->id, 'identity.permissions_changed', 'users', $id);

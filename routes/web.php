@@ -19,7 +19,7 @@ Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:8,
 Route::get('/register', fn (Request $r, AuthController $c) => $c->form($r, 'Register'));
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:3,1');
 Route::match(['get', 'post'], '/setup', [AuthController::class, 'setup'])->middleware('throttle:10,1');
-Route::get('/verify/{token}', [AuthController::class, 'verify'])->middleware('throttle:10,1');
+Route::get('/verify/{token}', [AuthController::class, 'verify'])->middleware(['auth', 'throttle:10,1']);
 Route::get('/forgot-password', fn () => Inertia::render('Auth/Forgot'));
 Route::post('/forgot-password', [AuthController::class, 'forgot'])->middleware('throttle:3,1');
 Route::match(['get', 'post'], '/password/reset/{token}', [AuthController::class, 'reset'])->middleware('throttle:5,1');

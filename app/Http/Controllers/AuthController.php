@@ -95,6 +95,19 @@ final class AuthController extends Controller
         $request->session()->put(['auth.epoch' => $user['session_epoch'] ?? 0, 'auth.confirmed_at' => time(), 'auth.mfa' => false]);
     }
 
+    private function existingAccount(string $email): ?array
+    {
+        $index = $this->store->get('identity_emails', $this->identity($email));
+
+        return $index ? $this->store->get('users', $index['user_id']) : null;
+    }
+
+    /** A self-registered prospect that never proved its address may have been created by someone else, so an invitation can take it over. */
+    private function claimable(array $user): bool
+    {
+        return empty($user['email_verified_at']) && array_values($user['roles'] ?? []) === ['prospect'];
+    }
+
     private function createUser(array $data, array $roles, bool $verified = false): array
     {
         $email = strtolower(trim($data['email']));
@@ -131,21 +144,24 @@ final class AuthController extends Controller
         $this->outbox->enqueue('email', ['to' => $user['email'], 'subject' => $kind === 'reset' ? 'Reset your LawyerCMS password' : 'Verify your email', 'body' => 'Use this private link before it expires: '.$url]);
     }
 
-    public function verify(string $token): mixed
+    public function verify(Request $request, string $token): mixed
     {
+        // Verification must come from the account holder's own session: a link someone else triggered for your address
+        // must not verify their account (and so qualify it for firm access) just because you clicked it.
         $this->consumeToken($token, 'verify', function ($user) {
             return array_merge($user, ['email_verified_at' => now()->toISOString()]);
-        });
+        }, $request->user()->id);
 
         return redirect('/portal')->with('status', 'Email verified.');
     }
 
-    private function consumeToken(string $token, string $kind, callable $transform): void
+    private function consumeToken(string $token, string $kind, callable $transform, ?string $userId = null): void
     {
-        $this->store->transaction(function () use ($token, $kind, $transform) {
+        $this->store->transaction(function () use ($token, $kind, $transform, $userId) {
             $id = hash('sha256', $token);
             $record = $this->store->get('identity_tokens', $id);
             abort_unless($record && $record['kind'] === $kind && ! $record['used_at'] && $record['expires_at'] > now()->toISOString(), 422, 'This link has expired or has already been used.');
+            abort_if($userId !== null && $record['user_id'] !== $userId, 403, 'Sign in to the account this link was sent for, then open the link again.');
             $user = $this->store->get('users', $record['user_id']);
             abort_unless($user !== null, 422);
             if ($kind === 'reset') {
@@ -191,6 +207,7 @@ final class AuthController extends Controller
     {
         $user = $this->store->get('users', $request->user()->id);
         $enrolling = empty($user['mfa_secret']);
+        abort_if($enrolling && empty($user['email_verified_at']), 403, 'Verify your email address before setting up an authenticator.');
         if ($request->isMethod('get')) {
             if ($enrolling && empty($user['mfa_pending'])) {
                 $user = $this->store->put('users', $user['id'], array_merge($user, ['mfa_pending' => Crypt::encryptString(TOTP::generate()->getSecret())]), $user['version']);
@@ -244,6 +261,8 @@ final class AuthController extends Controller
         }
         $token = Str::random(64);
         $invitation = $this->store->transaction(function () use ($data, $request, $token) {
+            $existing = $this->existingAccount($data['email']);
+            abort_if($existing && ! $this->claimable($existing), 422, 'An account with this email already exists. Change its access in Team settings instead.');
             $record = $this->store->create('invitations', ['email' => strtolower($data['email']), 'roles' => $data['roles'], 'access_expires_at' => $data['access_expires_at'] ?? null, 'owner_id' => $request->user()->id, 'expires_at' => now()->addDays($data['expires_days'] ?? 3)->toISOString(), 'used_at' => null], hash('sha256', $token));
             $this->outbox->enqueue('email', ['to' => $data['email'], 'subject' => 'You are invited to LawyerCMS', 'body' => 'Accept your invitation: '.url('/invite/'.$token)]);
 
@@ -264,7 +283,17 @@ final class AuthController extends Controller
             $invite = $this->store->get('invitations', $id);
             abort_unless($invite && ! $invite['used_at'] && $invite['expires_at'] > now()->toISOString(), 422, 'Invitation is unavailable.');
             abort_if(! empty($invite['access_expires_at']) && Carbon::parse($invite['access_expires_at'])->isPast(), 422, 'Invitation access period has expired.');
-            $user = $this->createUser(array_merge($data, ['email' => $invite['email'], 'access_expires_at' => $invite['access_expires_at'] ?? null]), $invite['roles'], true);
+            $existing = $this->existingAccount($invite['email']);
+            if ($existing) {
+                // Accepting proves control of the mailbox: replace whatever an unverified self-registration set up.
+                abort_unless($this->claimable($existing), 422, 'An account with this email already exists. Sign in instead.');
+                $user = array_merge($existing, ['name' => $data['name'], 'password' => Hash::make($data['password']), 'roles' => $invite['roles'], 'status' => 'active', 'access_expires_at' => $invite['access_expires_at'] ?? null, 'email_verified_at' => now()->toISOString(), 'session_epoch' => ($existing['session_epoch'] ?? 0) + 1]);
+                unset($user['mfa_secret'], $user['mfa_pending'], $user['mfa_last_step'], $user['recovery_codes']);
+                $user = $this->store->put('users', $existing['id'], $user, $existing['version']);
+                $this->audit->log($user['id'], 'identity.invitation_claimed_account', 'users', $user['id']);
+            } else {
+                $user = $this->createUser(array_merge($data, ['email' => $invite['email'], 'access_expires_at' => $invite['access_expires_at'] ?? null]), $invite['roles'], true);
+            }
             $this->store->put('invitations', $id, array_merge($invite, ['used_at' => now()->toISOString()]), $invite['version']);
 
             return $user;
