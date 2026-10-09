@@ -7,6 +7,21 @@ Created by **[ramanpal singh](https://kwebby.com)**. Application code is [MIT li
 
 > Version 0.1.0 is a working release candidate. Managed database certification, live integration validation and independent penetration testing remain [release gates](docs/RELEASE_GATES.md). Use fictional data until your deployment has passed them.
 
+## Screenshots
+
+Screenshots from the running LawyerCMS application, using the fictional Morgan & Ellis demo practice. [View all eight screenshots](docs/SCREENSHOTS.md), including inline task updates, Kanban, calendar, BlockNote, homepage editing, colors and fonts.
+
+![LawyerCMS dashboard showing practice totals, task priorities and recent matters](docs/screenshots/dashboard.jpg)
+
+<details>
+<summary>Preview the Kanban board and website builder</summary>
+
+![LawyerCMS Kanban board with task cards and status shortcuts](docs/screenshots/tasks-kanban.jpg)
+
+![LawyerCMS homepage section editor with text, layout, image and button controls](docs/screenshots/website-builder.jpg)
+
+</details>
+
 ## What you can do
 
 | Area | Included workflows |
