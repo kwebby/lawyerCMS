@@ -23,10 +23,12 @@ final class Health
         $ai = $this->settings->get('ai');
         $delivery = $this->store->query('email_deliveries', [], 1);
         $latestRun = $this->store->query('ai_runs', [], 1);
+        $failingSteps = $heartbeat['failures'] ?? [];
+        $repeated = array_filter($failingSteps, fn ($failure) => ($failure['count'] ?? 0) >= 3);
 
         return [
             'database' => ['status' => 'connected', 'profile' => config('crm.store') === 'firestore' ? 'firestore' : config('database.default'), 'latency_ms' => $latency],
-            'cron' => ['status' => $heartbeat && strtotime($heartbeat['last_run_at']) > time() - 180 ? 'healthy' : 'attention', 'last_run_at' => $heartbeat['last_run_at'] ?? null],
+            'cron' => ['status' => $heartbeat && strtotime($heartbeat['last_run_at']) > time() - 180 && ! $repeated ? 'healthy' : 'attention', 'last_run_at' => $heartbeat['last_run_at'] ?? null, 'failing_steps' => $failingSteps],
             'scanner' => ['status' => config('crm.scanner.url') ? 'configured' : 'not_configured', 'note' => 'Every upload requires a clean digest-matched response. Configuration alone does not establish scanner health.'],
             'private_storage' => ['status' => is_dir($path) && is_writable($path) && ($free === false || $free > 512 * 1024 * 1024) ? 'writable' : 'attention', 'free_bytes' => $free === false ? null : $free],
             'jobs' => ['pending' => count($pending), 'failed' => count($failed), 'counts_capped_at' => 1000, 'oldest_pending_at' => $pending[0]['created_at'] ?? null, 'oldest_pending_seconds' => isset($pending[0]) ? max(0, time() - strtotime($pending[0]['created_at'])) : 0],

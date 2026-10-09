@@ -10,6 +10,7 @@ use App\Domain\Finance\FinancialDocuments;
 use App\Domain\Finance\PaymentService;
 use App\Domain\Finance\RecurringInvoiceService;
 use App\Domain\Publishing\IndexNow;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Symfony\Component\Mailer\Transport\Smtp\EsmtpTransport;
@@ -34,11 +35,7 @@ final class JobRunner
         if (app()->isDownForMaintenance()) {
             return ['done' => 0, 'failed' => 0, 'maintenance' => true];
         }
-        app(PaymentService::class)->queuePendingChecks();
-        app(RecurringInvoiceService::class)->queueDue();
-        app(NotificationDelivery::class)->queueDue();
-        $this->store->put('system', 'cron', ['last_run_at' => now()->toISOString()]);
-        $this->expireTemporary();
+        $this->prelude();
         $jobs = array_merge($this->store->query('jobs', ['status' => 'pending'], 100, 'available_at', 'asc'), $this->store->query('jobs', ['status' => 'running'], 100, 'lease_until', 'asc'));
         $cpu = (int) ini_get('max_execution_time');
         foreach ($jobs as $candidate) {
@@ -65,6 +62,61 @@ final class JobRunner
         }
 
         return compact('done', 'failed');
+    }
+
+    /** Each scheduling step is isolated so one persistent error cannot stop job processing; consecutive failures are kept on the heartbeat for Health. */
+    private function prelude(): void
+    {
+        $failures = [];
+        $previous = $this->step('heartbeat', fn () => $this->store->get('system', 'cron'), $failures)['failures'] ?? [];
+        $this->step('payment_checks', fn () => app(PaymentService::class)->queuePendingChecks(), $failures, $previous);
+        $this->step('recurring_invoices', fn () => app(RecurringInvoiceService::class)->queueDue(), $failures, $previous);
+        $this->step('notification_digests', fn () => app(NotificationDelivery::class)->queueDue(), $failures, $previous);
+        $this->step('temporary_expiry', fn () => $this->expireTemporary(), $failures, $previous);
+        $this->step('job_retention', fn () => $this->purgeJobs(), $failures, $previous);
+        $this->step('heartbeat', fn () => $this->store->put('system', 'cron', ['last_run_at' => now()->toISOString(), 'failures' => $failures]), $failures, $previous);
+    }
+
+    private function step(string $name, callable $step, array &$failures, array $previous = []): mixed
+    {
+        try {
+            return $step();
+        } catch (\Throwable $error) {
+            // Exception messages can carry record data; log only the step and exception class.
+            rescue(fn () => Log::warning('crm:tick step failed', ['step' => $name, 'error' => class_basename($error)]), report: false);
+            $failures[$name] = ['error' => class_basename($error), 'count' => ($previous[$name]['count'] ?? 0) + 1, 'since' => $previous[$name]['since'] ?? now()->toISOString()];
+
+            return null;
+        }
+    }
+
+    /**
+     * Delete completed jobs after 30 days and failed jobs after 90, at most $limit per call. A deduplicated job ID may be
+     * reused after deletion: every dedupe key is either guarded by its own effect record (payment, lead, notification,
+     * recurring occurrence, issued status, content version) or names an hour/day/period that does not recur.
+     */
+    public function purgeJobs(int $limit = 100, int $seconds = 5): int
+    {
+        $deadline = microtime(true) + $seconds;
+        $deleted = 0;
+        foreach (['completed' => 30, 'failed' => 90] as $status => $days) {
+            $cutoff = now()->subDays($days)->toISOString();
+            foreach ($this->store->query('jobs', ['status' => $status], $limit, 'created_at', 'asc') as $job) {
+                if ($deleted >= $limit || microtime(true) > $deadline || $job['created_at'] > $cutoff) {
+                    break;
+                }
+                if ($job['updated_at'] > $cutoff) {
+                    continue;
+                }
+                try {
+                    $this->store->delete('jobs', $job['id'], $job['version']);
+                    $deleted++;
+                } catch (Conflict) {
+                }
+            }
+        }
+
+        return $deleted;
     }
 
     public function claim(string $id): ?array

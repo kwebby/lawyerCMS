@@ -5,12 +5,14 @@
 namespace Tests\Feature;
 
 use App\Contracts\RecordStore;
+use App\Support\Health;
 use App\Support\JobRunner;
 use App\Support\Outbox;
 use App\Support\PrivateFiles;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 final class JobRunnerTest extends TestCase
@@ -57,6 +59,54 @@ final class JobRunnerTest extends TestCase
         $notifications = $this->store->query('notifications', ['user_id' => $owner['id']]);
         $this->assertSame(['A background job needs attention'], array_values(array_unique(array_column($notifications, 'title'))));
         $this->assertCount(2, $notifications);
+    }
+
+    public function test_a_persistently_failing_scheduling_step_does_not_stop_jobs_and_repeats_surface_in_health(): void
+    {
+        Log::spy();
+        $broken = $this->store->create('recurring_invoices', ['status' => 'active', 'next_run_at' => 'not-a-date']);
+        $runner = app(JobRunner::class);
+        for ($tick = 1; $tick <= 3; $tick++) {
+            $job = app(Outbox::class)->enqueue('record.changed', []);
+            $this->assertSame(1, $runner->tick(45)['done']);
+            $this->assertSame('completed', $this->store->get('jobs', $job['id'])['status']);
+            $failure = $this->store->get('system', 'cron')['failures']['recurring_invoices'];
+            $this->assertSame([$tick, 'InvalidFormatException'], [$failure['count'], $failure['error']]);
+            $this->assertSame($tick < 3 ? 'healthy' : 'attention', app(Health::class)->report()['cron']['status']);
+        }
+        Log::shouldHaveReceived('warning')->with('crm:tick step failed', ['step' => 'recurring_invoices', 'error' => 'InvalidFormatException'])->times(3);
+        $this->store->delete('recurring_invoices', $broken['id']);
+        $runner->tick(45);
+        $this->assertSame([], app(Health::class)->report()['cron']['failing_steps']);
+        $this->assertSame('healthy', app(Health::class)->report()['cron']['status']);
+    }
+
+    public function test_old_finished_jobs_are_purged_in_bounded_batches_and_unfinished_or_recent_jobs_are_kept(): void
+    {
+        $job = fn (string $status, array $data = []) => $this->store->create('jobs', $data + ['type' => 'record.changed', 'payload' => [], 'status' => $status, 'attempts' => 1, 'available_at' => now()->toISOString(), 'lease_until' => null, 'lease_token' => null]);
+        $this->travel(-100)->days();
+        $oldFailed = $job('failed');
+        $oldPending = $job('pending', ['available_at' => now()->addYears(2)->toISOString()]);
+        $this->travel(60)->days();
+        $recentFailed = $job('failed');
+        $oldCompleted = [$job('completed'), $job('completed'), app(Outbox::class)->enqueue('publishing.published', [], 'publish-page-2')];
+        $finished = $this->store->get('jobs', $oldCompleted[2]['id']);
+        $this->store->put('jobs', $finished['id'], array_replace($finished, ['status' => 'completed']), $finished['version']);
+        $this->travel(5)->days();
+        $completedLate = $job('pending');
+        $this->travelBack();
+        $this->store->put('jobs', $completedLate['id'], array_replace($completedLate, ['status' => 'completed']), $completedLate['version']);
+        $recentCompleted = $job('completed');
+        $runner = app(JobRunner::class);
+        $this->assertSame(2, $runner->purgeJobs(2));
+        $this->assertCount(6, $this->store->query('jobs', [], 100));
+        $runner->tick(45);
+        $remaining = array_column($this->store->query('jobs', [], 100), 'id');
+        sort($remaining);
+        $expected = [$oldPending['id'], $recentFailed['id'], $completedLate['id'], $recentCompleted['id']];
+        sort($expected);
+        $this->assertSame($expected, $remaining);
+        $this->assertSame('pending', app(Outbox::class)->enqueue('publishing.published', [], 'publish-page-2')['status'], 'A purged dedupe key is usable again.');
     }
 
     public function test_each_handler_runs_under_time_limits_shorter_than_its_lease(): void
