@@ -25,24 +25,29 @@ final class OperationsService
             $this->access->authorize($user, $collection.'.read');
         }
         $allowed = array_intersect_key($filters, array_flip(['status', 'owner_id', 'matter_id', 'practice', 'jurisdiction', 'source']));
-        $records = $this->store->query($collection, $allowed, 500);
-        $records = array_values(array_filter($records, function ($record) use ($user, $collection) {
-            if (! $this->access->can($user, $collection.'.read', $record)) {
-                return false;
+        $search = mb_strtolower(trim((string) ($filters['q'] ?? '')));
+
+        return $this->access->cached(function () use ($user, $collection, $allowed, $search) {
+            $records = [];
+            $matters = [];
+            foreach ($this->store->each($collection, $allowed) as $record) {
+                if ($search !== '' && ! str_contains(mb_strtolower(implode(' ', array_filter([$record['name'] ?? null, $record['title'] ?? null, $record['email'] ?? null, $record['case_reference'] ?? null, implode(' ', $record['aliases'] ?? []), implode(' ', $record['tags'] ?? [])]))), $search)) {
+                    continue;
+                }
+                if (! $this->access->can($user, $collection.'.read', $record)) {
+                    continue;
+                }
+                if (! empty($record['matter_id'])) {
+                    $matter = $matters[$record['matter_id']] ??= $this->store->get('matters', $record['matter_id']) ?? false;
+                    if (! $matter || ! $this->access->can($user, 'matters.read', $matter)) {
+                        continue;
+                    }
+                }
+                $records[] = $record;
             }
-            if (! empty($record['matter_id'])) {
-                $matter = $this->store->get('matters', $record['matter_id']);
 
-                return $matter && $this->access->can($user, 'matters.read', $matter);
-            }
-
-            return true;
-        }));
-        if ($search = trim((string) ($filters['q'] ?? ''))) {
-            $records = array_values(array_filter($records, fn ($r) => str_contains(mb_strtolower(implode(' ', array_filter([$r['name'] ?? null, $r['title'] ?? null, $r['email'] ?? null, $r['case_reference'] ?? null, implode(' ', $r['aliases'] ?? []), implode(' ', $r['tags'] ?? [])]))), mb_strtolower($search))));
-        }
-
-        return $records;
+            return $records;
+        });
     }
 
     public function find($user, string $collection, string $id, string $action = 'read'): array
@@ -185,23 +190,27 @@ final class OperationsService
         $lead = $this->find($user, 'leads', $id, 'review');
         $this->access->authorize($user, 'matters.write');
         $terms = array_values(array_filter(array_merge([$lead['name'] ?? '', $lead['email'] ?? ''], $lead['connected_parties'] ?? [])));
-        $matches = [];
-        foreach (['contacts', 'leads', 'matters'] as $collection) {
-            foreach ($this->store->query($collection, [], 500) as $record) {
-                if ($record['id'] === $id || ! $this->access->can($user, $collection.'.read', $record)) {
-                    continue;
-                }
-                $haystack = mb_strtolower(implode(' ', [$record['name'] ?? '', $record['title'] ?? '', $record['email'] ?? '', implode(' ', $record['aliases'] ?? []), implode(' ', $record['connected_parties'] ?? [])]));
-                foreach ($terms as $term) {
-                    if (mb_strlen($term) >= 3 && str_contains($haystack, mb_strtolower($term))) {
-                        $matches[] = ['collection' => $collection, 'id' => $record['id'], 'name' => $record['name'] ?? $record['title'] ?? '', 'matched_term' => $term];
-                        break;
+        $matches = $this->access->cached(function () use ($user, $id, $terms) {
+            $matches = [];
+            foreach (['contacts', 'leads', 'matters'] as $collection) {
+                foreach ($this->store->each($collection) as $record) {
+                    if ($record['id'] === $id || ! $this->access->can($user, $collection.'.read', $record)) {
+                        continue;
+                    }
+                    $haystack = mb_strtolower(implode(' ', [$record['name'] ?? '', $record['title'] ?? '', $record['email'] ?? '', implode(' ', $record['aliases'] ?? []), implode(' ', $record['connected_parties'] ?? [])]));
+                    foreach ($terms as $term) {
+                        if (mb_strlen($term) >= 3 && str_contains($haystack, mb_strtolower($term))) {
+                            $matches[] = ['collection' => $collection, 'id' => $record['id'], 'name' => $record['name'] ?? $record['title'] ?? '', 'matched_term' => $term];
+                            break;
+                        }
                     }
                 }
             }
-        }
 
-        return ['matches' => $matches, 'review_required' => true, 'search_limit_per_collection' => 500];
+            return $matches;
+        });
+
+        return ['matches' => $matches, 'review_required' => true];
     }
 
     private function collection(string $collection): void

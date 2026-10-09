@@ -99,7 +99,7 @@ final class NotificationDelivery
             $invoice = $this->store->get('invoices', $resource['id']);
             $targets = array_merge($targets, $invoice['client_ids'] ?? [], [$invoice['owner_id'] ?? null]);
         }
-        foreach ($this->store->query('users', [], 500) as $user) {
+        foreach ($this->store->each('users') as $user) {
             if (! str_starts_with($job['type'], 'message.') && (array_intersect($user['roles'], ['owner', 'admin']) || (str_starts_with($job['type'], 'payment.') && in_array('accounts', $user['roles'], true)))) {
                 $targets[] = $user['id'];
             }

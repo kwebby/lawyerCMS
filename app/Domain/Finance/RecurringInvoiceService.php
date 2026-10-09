@@ -35,17 +35,24 @@ final class RecurringInvoiceService
     {
         $this->access->authorize($user, 'recurring_invoices.read');
 
-        return array_values(array_filter($this->store->query('recurring_invoices', [], 500), function ($record) use ($user) {
-            if (! $this->access->can($user, 'recurring_invoices.read', $record)) {
-                return false;
+        return $this->access->cached(function () use ($user) {
+            $records = [];
+            $matters = [];
+            foreach ($this->store->each('recurring_invoices') as $record) {
+                if (! $this->access->can($user, 'recurring_invoices.read', $record)) {
+                    continue;
+                }
+                if (! empty($record['matter_id'])) {
+                    $matter = $matters[$record['matter_id']] ??= $this->store->get('matters', $record['matter_id']) ?? false;
+                    if (! $matter || ! $this->access->can($user, 'matters.read', $matter)) {
+                        continue;
+                    }
+                }
+                $records[] = $record;
             }
-            if (empty($record['matter_id'])) {
-                return true;
-            }
-            $matter = $this->store->get('matters', $record['matter_id']);
 
-            return $matter !== null && $this->access->can($user, 'matters.read', $matter);
-        }));
+            return $records;
+        });
     }
 
     public function save($user, array $input, ?string $id = null): array

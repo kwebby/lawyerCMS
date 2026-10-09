@@ -73,6 +73,7 @@ Every record returned by the store contains `id`, integer `version`, `created_at
 | --- | --- |
 | `get(collection, id)` | Get one record or null. |
 | `query(collection, filters, limit, orderBy, direction)` | Exact-equality filters with bounded results and ordering. This is not a full-text search engine. |
+| `each(collection, filters, pageSize)` | Every matching record, newest first, read in bounded pages. Use it for listings, searches and checks (such as conflict review) that must not stop at a limit. Not for use inside `transaction()`. |
 | `create(collection, data, id?)` | Insert a record; assign UUID unless a stable ID is supplied. |
 | `put(collection, id, data, expectedVersion?)` | Replace application fields, preserve creation time, advance version and optionally reject stale writes. |
 | `delete(collection, id, expectedVersion?)` | Delete, with optional conflict checking. |

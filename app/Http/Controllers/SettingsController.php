@@ -104,7 +104,7 @@ final class SettingsController extends Controller
             $this->access->authorize($request->user(), 'matters.read', $matter);
         }
         $records = [];
-        foreach ($this->store->query('users', [], 500) as $record) {
+        foreach ($this->store->each('users') as $record) {
             if (($record['status'] ?? 'active') !== 'active') {
                 continue;
             }
@@ -125,7 +125,7 @@ final class SettingsController extends Controller
     {
         $this->access->authorize($request->user(), 'users.read');
 
-        return response()->json(['data' => array_map(fn ($u) => (new CrmUser($u))->record(), $this->store->query('users', [], 500))]);
+        return response()->json(['data' => array_map(fn ($u) => (new CrmUser($u))->record(), iterator_to_array($this->store->each('users'), false))]);
     }
 
     public function updateUser(Request $request, string $id): mixed

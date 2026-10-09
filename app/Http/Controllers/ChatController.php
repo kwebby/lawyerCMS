@@ -32,7 +32,12 @@ final class ChatController extends Controller
 
     public function index(Request $request): mixed
     {
-        $records = array_filter($this->store->query('conversations', [], 1000), fn ($c) => in_array($request->user()->id, $c['member_ids'] ?? [], true));
+        $records = [];
+        foreach ($this->store->each('conversations') as $conversation) {
+            if (in_array($request->user()->id, $conversation['member_ids'] ?? [], true)) {
+                $records[] = $conversation;
+            }
+        }
         $records = array_filter($records, function ($c) use ($request) {
             try {
                 $this->conversation($request, $c['id']);

@@ -141,7 +141,7 @@ final class FinanceController extends Controller
     {
         $run = $this->payroll->transition($r->user(), $id, $action);
         if ($action === 'release') {
-            foreach ($this->store->query('payslips', ['run_id' => $id], 100) as $slip) {
+            foreach ($this->store->each('payslips', ['run_id' => $id]) as $slip) {
                 $this->documents->payslip($slip);
             }
         }

@@ -74,7 +74,15 @@ final class JobRunner
 
     private function finish(array $lease, ?\Throwable $error = null): void
     {
-        $this->store->transaction(function () use ($lease, $error) {
+        $admins = [];
+        if ($error && $lease['attempts'] >= 5) {
+            foreach ($this->store->each('users') as $user) {
+                if (array_intersect($user['roles'], ['owner', 'admin'])) {
+                    $admins[] = $user['id'];
+                }
+            }
+        }
+        $this->store->transaction(function () use ($lease, $error, $admins) {
             $job = $this->store->get('jobs', $lease['id']);
             if (! $job || $job['lease_token'] !== $lease['lease_token']) {
                 return;
@@ -90,10 +98,8 @@ final class JobRunner
                 }
             }
             if ($terminal) {
-                foreach ($this->store->query('users', [], 500) as $user) {
-                    if (array_intersect($user['roles'], ['owner', 'admin'])) {
-                        $this->store->create('notifications', ['user_id' => $user['id'], 'title' => 'A background job needs attention', 'category' => 'system', 'severity' => 'error', 'action_required' => true, 'read_at' => null, 'action_url' => '/app/settings', 'job_id' => $job['id']]);
-                    }
+                foreach ($admins as $userId) {
+                    $this->store->create('notifications', ['user_id' => $userId, 'title' => 'A background job needs attention', 'category' => 'system', 'severity' => 'error', 'action_required' => true, 'read_at' => null, 'action_url' => '/app/settings', 'job_id' => $job['id']]);
                 }
             }
         });

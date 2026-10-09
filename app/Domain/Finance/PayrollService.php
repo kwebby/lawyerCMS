@@ -19,7 +19,7 @@ final class PayrollService
     {
         $this->access->authorize($user, 'payroll.read');
 
-        return array_values(array_filter($this->store->query('payroll_runs', [], 500), fn ($r) => $this->access->can($user, 'payroll.read', $r)));
+        return $this->access->filter($user, 'payroll.read', $this->store->each('payroll_runs'));
     }
 
     public function find($user, string $id, string $action = 'read'): array
@@ -121,7 +121,16 @@ final class PayrollService
 
     public function slips($user): array
     {
-        return array_values(array_filter($this->store->query('payslips', [], 500), fn ($slip) => $slip['employee_id'] === $user->id || $this->access->can($user, 'payroll.read', $slip)));
+        return $this->access->cached(function () use ($user) {
+            $slips = [];
+            foreach ($this->store->each('payslips') as $slip) {
+                if ($slip['employee_id'] === $user->id || $this->access->can($user, 'payroll.read', $slip)) {
+                    $slips[] = $slip;
+                }
+            }
+
+            return $slips;
+        });
     }
 
     public function slip($user, string $id): array

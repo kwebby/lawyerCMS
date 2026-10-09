@@ -123,7 +123,7 @@ final class FirestoreRecordStore implements RecordStore
         return $record;
     }
 
-    public function query(string $collection, array $filters = [], int $limit = 100, string $orderBy = 'created_at', string $direction = 'desc'): array
+    private function structuredQuery(string $collection, array $filters, int $limit, string $orderBy, string $direction): array
     {
         $this->name($collection, 'validate');
         foreach (array_merge(array_keys($filters), [$orderBy]) as $key) {
@@ -135,10 +135,17 @@ final class FirestoreRecordStore implements RecordStore
         foreach ($filters as $key => $value) {
             $where[] = ['fieldFilter' => ['field' => ['fieldPath' => $key], 'op' => 'EQUAL', 'value' => self::encode($value)]];
         }
-        $query = ['from' => [['collectionId' => $collection]], 'limit' => max(1, min(10000, $limit)), 'orderBy' => [['field' => ['fieldPath' => $orderBy], 'direction' => $direction === 'asc' ? 'ASCENDING' : 'DESCENDING']]];
+        $query = ['from' => [['collectionId' => $collection]], 'limit' => $limit, 'orderBy' => [['field' => ['fieldPath' => $orderBy], 'direction' => $direction === 'asc' ? 'ASCENDING' : 'DESCENDING']]];
         if ($where) {
             $query['where'] = count($where) === 1 ? $where[0] : ['compositeFilter' => ['op' => 'AND', 'filters' => $where]];
         }
+
+        return $query;
+    }
+
+    public function query(string $collection, array $filters = [], int $limit = 100, string $orderBy = 'created_at', string $direction = 'desc'): array
+    {
+        $query = $this->structuredQuery($collection, $filters, max(1, min(10000, $limit)), $orderBy, $direction);
         $body = ['structuredQuery' => $query];
         if ($this->transactionId) {
             $body['transaction'] = $this->transactionId;
@@ -168,6 +175,33 @@ final class FirestoreRecordStore implements RecordStore
         usort($records, fn ($a, $b) => ($direction === 'asc' ? 1 : -1) * (($a[$orderBy] ?? null) <=> ($b[$orderBy] ?? null)));
 
         return array_slice($records, 0, max(1, min(10000, $limit)));
+    }
+
+    public function each(string $collection, array $filters = [], int $pageSize = 500): \Generator
+    {
+        if ($this->transactionId) {
+            throw new \LogicException('Use query() for reads inside a transaction.');
+        }
+        $pageSize = max(1, min(1000, $pageSize));
+        // __name__ DESCENDING is Firestore's implicit tie order here, so existing created_at indexes still apply.
+        $query = $this->structuredQuery($collection, $filters, $pageSize, 'created_at', 'desc');
+        $query['orderBy'][] = ['field' => ['fieldPath' => '__name__'], 'direction' => 'DESCENDING'];
+        $cursor = null;
+        do {
+            if ($cursor) {
+                $query['startAt'] = ['values' => $cursor, 'before' => false];
+            }
+            $count = 0;
+            foreach ($this->request('POST', $this->root().':runQuery', ['structuredQuery' => $query]) as $row) {
+                if (! isset($row['document'])) {
+                    continue;
+                }
+                $count++;
+                $doc = $row['document'];
+                $cursor = [$doc['fields']['created_at'] ?? ['nullValue' => null], ['referenceValue' => $doc['name']]];
+                yield array_map(self::decode(...), $doc['fields']);
+            }
+        } while ($count === $pageSize);
     }
 
     public function create(string $collection, array $data, ?string $id = null): array

@@ -40,12 +40,18 @@ final class WebsiteEnquiryController extends Controller
         abort_unless(hash_equals($request->session()->get('website.enquiry_token', ''), $data['enquiry_token']), 419);
         abort_if(! empty($data['office_id']) && ! in_array($data['office_id'], array_column($website['offices'], 'id'), true), 422, 'Select a published office.');
         $key = hash('sha256', 'website-enquiry:'.$data['enquiry_token']);
-        $this->store->transaction(function () use ($data, $key) {
+        $owner = null;
+        foreach ($this->store->each('users') as $user) {
+            if (($user['status'] ?? 'active') === 'active' && array_intersect($user['roles'] ?? [], ['intake', 'owner', 'admin'])) {
+                $owner = $user['id'];
+                break;
+            }
+        }
+        $this->store->transaction(function () use ($data, $key, $owner) {
             if ($this->store->get('leads', $key)) {
                 return;
             }
-            $owners = array_values(array_filter($this->store->query('users', [], 1000), fn ($user) => ($user['status'] ?? 'active') === 'active' && array_intersect($user['roles'] ?? [], ['intake', 'owner', 'admin'])));
-            $lead = $this->store->create('leads', ['name' => trim($data['name']), 'email' => mb_strtolower($data['email']), 'phone' => $data['phone'] ?? '', 'jurisdiction' => $data['jurisdiction'], 'issue_category' => $data['issue_category'], 'office_id' => $data['office_id'] ?? '', 'source' => 'website', 'status' => 'new', 'stage' => 'new', 'owner_id' => $owners[0]['id'] ?? null, 'marketing_consent' => (bool) ($data['marketing_consent'] ?? false), 'contact_consent_at' => now()->toISOString(), 'email_verified_at' => null, 'next_action' => 'Verify contact details, review conflicts and arrange an initial conversation.'], $key);
+            $lead = $this->store->create('leads', ['name' => trim($data['name']), 'email' => mb_strtolower($data['email']), 'phone' => $data['phone'] ?? '', 'jurisdiction' => $data['jurisdiction'], 'issue_category' => $data['issue_category'], 'office_id' => $data['office_id'] ?? '', 'source' => 'website', 'status' => 'new', 'stage' => 'new', 'owner_id' => $owner, 'marketing_consent' => (bool) ($data['marketing_consent'] ?? false), 'contact_consent_at' => now()->toISOString(), 'email_verified_at' => null, 'next_action' => 'Verify contact details, review conflicts and arrange an initial conversation.'], $key);
             $this->outbox->enqueue('record.changed', ['collection' => 'leads', 'record_id' => $lead['id'], 'user_ids' => $lead['owner_id'] ? [$lead['owner_id']] : []], $key);
             $this->audit->log(null, 'website.enquiry_received', 'leads', $lead['id']);
         });

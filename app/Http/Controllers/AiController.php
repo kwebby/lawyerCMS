@@ -36,7 +36,7 @@ final class AiController extends Controller
 
     public function index(Request $request): mixed
     {
-        $records = array_filter($this->store->query('ai_runs', ['context' => 'staff'], 100), fn ($r) => $this->access->can($request->user(), 'ai_runs.read', $r));
+        $records = $this->access->filter($request->user(), 'ai_runs.read', $this->store->each('ai_runs', ['context' => 'staff']));
         $safe = [];
         foreach ($records as $run) {
             try {

@@ -35,7 +35,7 @@ final class SqlRecordStore implements RecordStore
         return $row ? json_decode($row->payload, true, 512, JSON_THROW_ON_ERROR) : null;
     }
 
-    public function query(string $collection, array $filters = [], int $limit = 100, string $orderBy = 'created_at', string $direction = 'desc'): array
+    private function filtered(string $collection, array $filters): Builder
     {
         $query = $this->table($collection);
         foreach ($filters as $key => $value) {
@@ -44,12 +44,36 @@ final class SqlRecordStore implements RecordStore
             }
             $query->where($key === 'id' ? 'id' : 'payload->'.$key, $value);
         }
+
+        return $query;
+    }
+
+    public function query(string $collection, array $filters = [], int $limit = 100, string $orderBy = 'created_at', string $direction = 'desc'): array
+    {
+        $query = $this->filtered($collection, $filters);
         if (! preg_match('/^[a-z_][a-z0-9_]*$/D', $orderBy)) {
             throw new \InvalidArgumentException('Invalid order.');
         }
         $query->orderBy(in_array($orderBy, ['created_at', 'updated_at', 'id']) ? $orderBy : 'payload->'.$orderBy, $direction === 'asc' ? 'asc' : 'desc')->orderBy('id');
 
         return $query->limit(max(1, min(10000, $limit)))->get()->map(fn ($row) => json_decode($row->payload, true, 512, JSON_THROW_ON_ERROR))->all();
+    }
+
+    public function each(string $collection, array $filters = [], int $pageSize = 500): \Generator
+    {
+        $pageSize = max(1, min(1000, $pageSize));
+        $last = null;
+        do {
+            $query = $this->filtered($collection, $filters);
+            if ($last) {
+                $query->where(fn ($q) => $q->where('created_at', '<', $last->created_at)->orWhere(fn ($q) => $q->where('created_at', $last->created_at)->where('id', '>', $last->id)));
+            }
+            $rows = $query->orderBy('created_at', 'desc')->orderBy('id')->limit($pageSize)->get();
+            foreach ($rows as $row) {
+                yield json_decode($row->payload, true, 512, JSON_THROW_ON_ERROR);
+            }
+            $last = $rows->last();
+        } while ($rows->count() === $pageSize);
     }
 
     public function create(string $collection, array $data, ?string $id = null): array

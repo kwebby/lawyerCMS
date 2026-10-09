@@ -26,7 +26,7 @@ final class ContentController extends Controller
     public function index(Request $request)
     {
         $collection = $this->collection($request);
-        $records = array_values(array_filter($this->store->query($collection, [], 1000), fn ($record) => $this->access->can($request->user(), $collection.'.read', $record) && ($record['status'] ?? '') !== 'archived'));
+        $records = array_values(array_filter($this->access->filter($request->user(), $collection.'.read', $this->store->each($collection)), fn ($record) => ($record['status'] ?? '') !== 'archived'));
 
         return response()->json(['data' => array_map(fn ($record) => $this->content->response($record, false), $records)]);
     }

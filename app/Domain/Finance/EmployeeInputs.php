@@ -38,7 +38,7 @@ final class EmployeeInputs
         $this->staff($user->id);
         $manage = $this->access->can($user, 'employees.read');
 
-        return $this->store->query($collection, $manage ? [] : ['employee_id' => $user->id], 500);
+        return iterator_to_array($this->store->each($collection, $manage ? [] : ['employee_id' => $user->id]), false);
     }
 
     public function save($user, string $kind, array $input): array

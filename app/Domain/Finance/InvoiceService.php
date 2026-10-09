@@ -21,7 +21,7 @@ final class InvoiceService
             $this->access->authorize($user, 'invoices.read');
         }
 
-        return array_values(array_filter($this->store->query('invoices', [], 500), fn ($i) => $this->access->can($user, 'invoices.read', $i)));
+        return $this->access->filter($user, 'invoices.read', $this->store->each('invoices'));
     }
 
     public function find($user, string $id, string $action = 'read'): array

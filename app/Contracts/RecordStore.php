@@ -10,6 +10,9 @@ interface RecordStore
 
     public function query(string $collection, array $filters = [], int $limit = 100, string $orderBy = 'created_at', string $direction = 'desc'): array;
 
+    /** Every matching record, newest first, read in bounded pages. Use when a listing or check must not stop at a limit; not for use inside transaction(). */
+    public function each(string $collection, array $filters = [], int $pageSize = 500): iterable;
+
     public function create(string $collection, array $data, ?string $id = null): array;
 
     public function put(string $collection, string $id, array $data, ?int $expectedVersion = null): array;

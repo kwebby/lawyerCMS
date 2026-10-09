@@ -20,9 +20,10 @@ final class WorkspaceController extends Controller
         $ability = match ($collection) {
             'payroll_runs' => 'payroll','ai_runs' => 'ai_runs',default => $collection
         };
-        $records = $this->store->query($collection, [], 500);
+        // Notifications are a per-user feed: read the newest of this user's own rather than scanning everyone's.
+        $records = $collection === 'notifications' ? $this->store->query('notifications', ['user_id' => $request->user()->id], 500) : $this->store->each($collection);
 
-        return array_values(array_map(fn ($r) => array_diff_key($r, array_flip(['password', 'mfa_secret', 'mfa_pending', 'recovery_codes', 'remember_token', 'path', 'blocks_path', 'result_path', 'payload', 'api_key', 'secret', 'published_snapshot'])), array_filter($records, fn ($r) => $this->access->can($request->user(), $ability.'.read', $r))));
+        return array_map(fn ($r) => array_diff_key($r, array_flip(['password', 'mfa_secret', 'mfa_pending', 'recovery_codes', 'remember_token', 'path', 'blocks_path', 'result_path', 'payload', 'api_key', 'secret', 'published_snapshot'])), $this->access->filter($request->user(), $ability.'.read', $records));
     }
 
     private function data(Request $request, string $section): array
@@ -38,14 +39,20 @@ final class WorkspaceController extends Controller
             $this->access->authorize($request->user(), 'themes.read');
             $records = app(Themes::class)->all();
         }
-        $tasks = $this->records($request, 'tasks');
-        $matters = $this->records($request, 'matters');
-        $leads = $this->records($request, 'leads');
-        $invoices = $this->records($request, 'invoices');
-        $stats = ['active_matters' => count(array_filter($matters, fn ($r) => ! in_array($r['status'] ?? 'active', ['closed', 'archived']))), 'open_leads' => count($leads), 'pending_tasks' => count(array_filter($tasks, fn ($r) => ! in_array($r['status'] ?? '', ['done', 'cancelled', 'completed'], true))), 'overdue_tasks' => count(array_filter($tasks, fn ($r) => ($r['due_at'] ?? '9999') < now()->toISOString() && ! in_array($r['status'] ?? '', ['done', 'cancelled', 'completed'], true))), 'tasks' => $tasks, 'matters' => $matters, 'recent_matters' => array_slice($matters, 0, 5), 'leads' => $leads, 'invoices' => $invoices];
+        $stats = $section === 'dashboard' ? $this->stats($request, $records) : [];
         $settings = ['business' => array_intersect_key($this->settings->get('business'), array_flip(['legal_name', 'trading_name', 'currency', 'logo']))];
 
         return ['user' => $request->user()->record(), 'section' => $section, 'records' => $records, 'data' => $records, 'stats' => $stats, 'settings' => $settings, 'notifications' => $this->records($request, 'notifications'), 'csrf_token' => csrf_token()];
+    }
+
+    /** Only the dashboard renders these, so other sections skip the extra full listings. */
+    private function stats(Request $request, array $tasks): array
+    {
+        $matters = $this->records($request, 'matters');
+        $leads = $this->records($request, 'leads');
+        $invoices = $this->records($request, 'invoices');
+
+        return ['active_matters' => count(array_filter($matters, fn ($r) => ! in_array($r['status'] ?? 'active', ['closed', 'archived']))), 'open_leads' => count($leads), 'pending_tasks' => count(array_filter($tasks, fn ($r) => ! in_array($r['status'] ?? '', ['done', 'cancelled', 'completed'], true))), 'overdue_tasks' => count(array_filter($tasks, fn ($r) => ($r['due_at'] ?? '9999') < now()->toISOString() && ! in_array($r['status'] ?? '', ['done', 'cancelled', 'completed'], true))), 'tasks' => $tasks, 'matters' => $matters, 'recent_matters' => array_slice($matters, 0, 5), 'leads' => $leads, 'invoices' => $invoices];
     }
 
     public function page(Request $request, string $section = 'dashboard'): mixed

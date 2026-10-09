@@ -142,13 +142,19 @@ final class AnalyzerController extends Controller
         $run = $this->store->get('ai_runs', $id);
         abort_unless($run && $run['context'] === 'public' && $run['expires_at'] > now()->toISOString() && $request->session()->get('analyzer_grant') === $run['grant_id'], 403);
         $grant = $this->store->get('analyzer_grants', $run['grant_id']);
-        $lead = $this->store->transaction(function () use ($grant, $run) {
+        $owner = null;
+        foreach ($this->store->each('users') as $user) {
+            if (($user['status'] ?? 'active') === 'active' && array_intersect($user['roles'] ?? [], ['intake', 'owner'])) {
+                $owner = $user['id'];
+                break;
+            }
+        }
+        $lead = $this->store->transaction(function () use ($grant, $run, $owner) {
             $key = hash('sha256', 'analyzer-lead:'.$run['id']);
             if ($existing = $this->store->get('leads', $key)) {
                 return $existing;
             }
-            $owners = array_values(array_filter($this->store->query('users', [], 500), fn ($u) => ($u['status'] ?? 'active') === 'active' && array_intersect($u['roles'], ['intake', 'owner'])));
-            $lead = $this->store->create('leads', ['name' => $grant['name'], 'email' => $grant['email'], 'jurisdiction' => $grant['jurisdiction'], 'source' => 'tool:'.$run['kind'], 'status' => 'new', 'stage' => 'new', 'owner_id' => $owners[0]['id'] ?? null, 'marketing_consent' => $grant['marketing_consent'], 'issue_category' => $run['kind'], 'email_verified_at' => $grant['verified_at'], 'next_action' => 'Contact to arrange consultation. Private analysis is temporary; request explicit document transfer during intake.'], $key);
+            $lead = $this->store->create('leads', ['name' => $grant['name'], 'email' => $grant['email'], 'jurisdiction' => $grant['jurisdiction'], 'source' => 'tool:'.$run['kind'], 'status' => 'new', 'stage' => 'new', 'owner_id' => $owner, 'marketing_consent' => $grant['marketing_consent'], 'issue_category' => $run['kind'], 'email_verified_at' => $grant['verified_at'], 'next_action' => 'Contact to arrange consultation. Private analysis is temporary; request explicit document transfer during intake.'], $key);
             $this->outbox->enqueue('record.changed', ['collection' => 'leads', 'record_id' => $lead['id'], 'user_ids' => array_filter([$lead['owner_id']])], $key);
 
             return $lead;

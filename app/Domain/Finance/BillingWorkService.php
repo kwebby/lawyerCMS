@@ -44,11 +44,18 @@ final class BillingWorkService
         $this->access->authorize($user, $collection.'.read');
         $filters = array_intersect_key($filters, array_flip(['matter_id', 'status', 'owner_id']));
 
-        return array_values(array_filter($this->store->query($collection, $filters, 500), function ($record) use ($user, $collection) {
-            $matter = $this->store->get('matters', $record['matter_id']);
+        return $this->access->cached(function () use ($user, $collection, $filters) {
+            $records = [];
+            $matters = [];
+            foreach ($this->store->each($collection, $filters) as $record) {
+                $matter = $matters[$record['matter_id']] ??= $this->store->get('matters', $record['matter_id']) ?? false;
+                if ($matter && $this->access->can($user, 'matters.read', $matter) && $this->access->can($user, $collection.'.read', $record)) {
+                    $records[] = $record;
+                }
+            }
 
-            return $matter !== null && $this->access->can($user, 'matters.read', $matter) && $this->access->can($user, $collection.'.read', $record);
-        }));
+            return $records;
+        });
     }
 
     public function save($user, string $collection, array $input, ?string $id = null): array

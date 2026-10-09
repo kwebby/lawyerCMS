@@ -11,7 +11,51 @@ use Illuminate\Support\Carbon;
 
 final class Access
 {
+    /** @var array<string, array<string, ?array>>|null */
+    private ?array $cache = null;
+
     public function __construct(private RecordStore $store) {}
+
+    /** Run read-only checks with role and parent-matter lookups cached for the callback's duration; do not wrap writes. */
+    public function cached(callable $callback): mixed
+    {
+        if ($this->cache !== null) {
+            return $callback();
+        }
+        $this->cache = [];
+        try {
+            return $callback();
+        } finally {
+            $this->cache = null;
+        }
+    }
+
+    /** The records this user may perform the ability on, checked in one cached pass. */
+    public function filter(?CrmUser $user, string $ability, iterable $records): array
+    {
+        return $this->cached(function () use ($user, $ability, $records) {
+            $allowed = [];
+            foreach ($records as $record) {
+                if ($this->can($user, $ability, $record)) {
+                    $allowed[] = $record;
+                }
+            }
+
+            return $allowed;
+        });
+    }
+
+    private function lookup(string $collection, string $id): ?array
+    {
+        if ($this->cache === null) {
+            return $this->store->get($collection, $id);
+        }
+        if (! array_key_exists($id, $this->cache[$collection] ?? [])) {
+            $this->cache[$collection][$id] = $this->store->get($collection, $id);
+        }
+
+        return $this->cache[$collection][$id];
+    }
 
     public function can(?CrmUser $user, string $ability, ?array $record = null): bool
     {
@@ -34,7 +78,7 @@ final class Access
             return false;
         }
         if ($record && isset($record['matter_id']) && in_array($domain, ['documents', 'tasks', 'proceedings', 'conversations', 'messages', 'ai_runs', 'time_entries', 'expenses', 'recurring_invoices'])) {
-            $matter = $this->store->get('matters', $record['matter_id']);
+            $matter = $this->lookup('matters', $record['matter_id']);
             if (! $matter || ! $this->can($user, 'matters.read', $matter)) {
                 return false;
             }
@@ -60,7 +104,7 @@ final class Access
         $permissions = config('permissions.roles');
         $scope = null;
         foreach ($roles as $role) {
-            $custom = $this->store->get('roles', $role);
+            $custom = $this->lookup('roles', $role);
             $rules = $custom['permissions'] ?? $permissions[$role] ?? [];
             foreach ([$ability, $domain.'.*', '*'] as $key) {
                 if (isset($rules[$key])) {
