@@ -28,7 +28,7 @@ final class WorkspaceController extends Controller
             default => $this->store->each($collection),
         };
 
-        return array_map(fn ($r) => array_diff_key($r, array_flip(['password', 'mfa_secret', 'mfa_pending', 'recovery_codes', 'remember_token', 'path', 'blocks_path', 'result_path', 'payload', 'api_key', 'secret', 'published_snapshot'])), $this->access->filter($request->user(), $ability.'.read', $records));
+        return array_map(fn ($r) => $this->access->present($request->user(), $collection, array_diff_key($r, array_flip(['password', 'mfa_secret', 'mfa_pending', 'recovery_codes', 'remember_token', 'path', 'blocks_path', 'result_path', 'payload', 'api_key', 'secret', 'published_snapshot']))), $this->access->filter($request->user(), $ability.'.read', $records));
     }
 
     private function data(Request $request, string $section): array

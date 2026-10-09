@@ -46,7 +46,7 @@ final class FileController extends Controller
             throw $e;
         }
 
-        return response()->json(['data' => array_diff_key($record, ['path' => true])], 201);
+        return response()->json(['data' => $this->access->present($user, 'documents', array_diff_key($record, ['path' => true]))], 201);
     }
 
     public function download(Request $request, string $id): mixed

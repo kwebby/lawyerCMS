@@ -447,13 +447,19 @@ export function Operations({
                           render: (r: RecordData) => <Badge>{r.status}</Badge>,
                       },
                       { key: "jurisdiction", label: "Jurisdiction" },
-                      {
-                          key: "confidentiality",
-                          label: "Access",
-                          render: (r: RecordData) => (
-                              <Badge>{r.confidentiality || "standard"}</Badge>
-                          ),
-                      },
+                      ...(client
+                          ? []
+                          : [
+                                {
+                                    key: "confidentiality",
+                                    label: "Access",
+                                    render: (r: RecordData) => (
+                                        <Badge>
+                                            {r.confidentiality || "standard"}
+                                        </Badge>
+                                    ),
+                                },
+                            ]),
                   ]
                 : [
                       { key: "title", label: "Task" },
@@ -756,7 +762,7 @@ function RecordDetail({
                                     <dd>{display(record[f.name])}</dd>
                                 </div>
                             ))}
-                        {section === "matters" && (
+                        {section === "matters" && !client && (
                             <div>
                                 <dt>Team members</dt>
                                 <dd>

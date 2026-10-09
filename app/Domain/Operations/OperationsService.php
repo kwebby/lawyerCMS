@@ -44,7 +44,7 @@ final class OperationsService
                         continue;
                     }
                 }
-                $records[] = $record;
+                $records[] = $this->access->present($user, $collection, $record);
             }
 
             return $records;
@@ -62,7 +62,8 @@ final class OperationsService
             abort_unless($matter && $this->access->can($user, 'matters.read', $matter), 403);
         }
 
-        return $record;
+        // Reads go out to the requester; other actions use the whole record internally (portal users cannot write).
+        return $action === 'read' ? $this->access->present($user, $collection, $record) : $record;
     }
 
     public function save($user, string $collection, array $input, ?string $id = null): array

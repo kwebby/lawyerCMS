@@ -31,7 +31,7 @@ final class AiController extends Controller
             unset($run['result_path']);
         }
 
-        return $run;
+        return $this->access->present($request->user(), 'ai_runs', $run);
     }
 
     public function index(Request $request): mixed

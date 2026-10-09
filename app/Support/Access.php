@@ -11,6 +11,15 @@ use Illuminate\Support\Carbon;
 
 final class Access
 {
+    /** What the client portal renders of matters and tasks; team, walls, notes and engagement records stay with staff. */
+    private const PORTAL_FIELDS = [
+        'matters' => ['id', 'version', 'created_at', 'updated_at', 'title', 'reference', 'practice', 'practice_area', 'jurisdiction', 'status', 'scope'],
+        'tasks' => ['id', 'version', 'created_at', 'updated_at', 'title', 'matter_id', 'matter_title', 'due_at', 'legal_deadline', 'date_source', 'priority', 'status'],
+    ];
+
+    /** Access-control and internal fields never sent to portal users in any other collection. */
+    private const PORTAL_HIDDEN = ['team_ids', 'denied_user_ids', 'confidentiality', 'closure_notes', 'engagement', 'fee_terms', 'conflict_review', 'lead_id'];
+
     /** @var array<string, array<string, ?array>>|null */
     private ?array $cache = null;
 
@@ -168,6 +177,19 @@ final class Access
         }
 
         return $assigned;
+    }
+
+    /** The view of a readable record a user receives: staff get it whole, client and prospect portal users only client-facing fields. */
+    public function present(?CrmUser $user, string $collection, array $record): array
+    {
+        if (! $user || ! $this->isClient($user)) {
+            return $record;
+        }
+        if (isset(self::PORTAL_FIELDS[$collection])) {
+            return array_intersect_key($record, array_flip(self::PORTAL_FIELDS[$collection]));
+        }
+
+        return array_diff_key($record, array_flip(self::PORTAL_HIDDEN));
     }
 
     public function authorize(?CrmUser $user, string $ability, ?array $record = null): void
