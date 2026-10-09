@@ -116,4 +116,20 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Trusted Proxies and Sign-in Throttling
+    |--------------------------------------------------------------------------
+    |
+    | Comma-separated addresses/CIDR ranges of the reverse proxies whose
+    | X-Forwarded-* headers identify the client. Empty trusts none. Sign-in
+    | attempts are limited per account and address, with a looser per-address
+    | ceiling across all accounts.
+    |
+    */
+
+    'trusted_proxies' => env('TRUSTED_PROXIES', ''),
+
+    'login_attempts' => ['per_account' => 5, 'per_address' => 30],
+
 ];

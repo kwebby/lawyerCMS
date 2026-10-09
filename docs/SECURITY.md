@@ -27,6 +27,7 @@ Release requires remediation and independent retest of critical/high findings an
 
 - Disable production debug output and avoid logging request bodies/provider responses.
 - Maintain packages, TLS, restrictive ownership and least-privilege IAM/database identities.
+- Behind a load balancer or reverse proxy, set `TRUSTED_PROXIES` to exactly those proxy addresses so sign-in throttling sees real client addresses; leave it empty otherwise (see [DEPLOYMENT.md](DEPLOYMENT.md)).
 - Keep backup passphrase and APP_KEY in controlled recovery storage.
 - Review external-processing terms, jurisdiction-specific promotion and retention policies.
 - Validate scale, search/index design, bounded listings and document fidelity with representative firm data.

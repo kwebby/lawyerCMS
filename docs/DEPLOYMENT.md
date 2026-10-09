@@ -112,6 +112,10 @@ Adapt [deploy/nginx.conf](../deploy/nginx.conf). It redirects HTTP to the explic
 
 If TLS terminates at a proxy, configure Laravel trusted proxy handling for **only the real proxy addresses** and ensure correct forwarded protocol/host behavior. The sample is for TLS termination at Nginx itself. Do not trust arbitrary forwarded headers from the public internet.
 
+Set `TRUSTED_PROXIES` to the comma-separated IP addresses or CIDR ranges of the load balancers/reverse proxies in front of the application, for example `TRUSTED_PROXIES=10.0.0.10,10.0.1.0/24`. Only requests arriving from those addresses may supply `X-Forwarded-For`, `-Proto`, `-Host`, `-Port` and `-Prefix`. The default (empty) trusts no proxy, which is correct when clients reach Nginx/Apache directly. Each proxy must overwrite, not append to, client-supplied forwarding headers. `*` trusts every caller and is only acceptable when the application port cannot be reached except through the proxy.
+
+The client address drives sign-in throttling: five attempts per minute for one account from one address, and thirty per minute from one address across all accounts. Behind a proxy without `TRUSTED_PROXIES`, every visitor appears to come from the proxy and shares that address limit, so one person's failures can block everyone's sign-in. After changing the value, rebuild the configuration cache (`php artisan config:cache`).
+
 ## Apache
 
 Adapt [deploy/apache.conf](../deploy/apache.conf), with modules `rewrite`, `ssl`, `headers` and `proxy_fcgi` enabled. The included `public/.htaccess` provides front-controller rewrites. Keep `AllowOverride All` for that file or move the equivalent rules into the virtual host and disable overrides after testing.

@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/login', fn (Request $r, AuthController $c) => $c->form($r))->name('login');
-Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:8,1');
+Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:login');
 Route::get('/register', fn (Request $r, AuthController $c) => $c->form($r, 'Register'));
 Route::post('/register', [AuthController::class, 'register'])->middleware('throttle:3,1');
 Route::match(['get', 'post'], '/setup', [AuthController::class, 'setup'])->middleware('throttle:10,1');
