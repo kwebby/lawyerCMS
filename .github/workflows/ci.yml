@@ -7,6 +7,7 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         database: [mysql, pgsql]
     services:
