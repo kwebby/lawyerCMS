@@ -114,10 +114,10 @@ class FoundationTest extends TestCase
     public function test_public_registration_cannot_self_assign_privileged_roles(): void
     {
         $this->store->create('settings', ['completed' => true], 'installation');
-        $this->post('/register', ['name' => 'Visitor', 'email' => 'visitor@example.test', 'password' => 'Password123456', 'password_confirmation' => 'Password123456', 'roles' => ['owner']])->assertRedirect('/portal');
+        $this->post('/register', ['name' => 'Visitor', 'email' => 'visitor@example.test', 'password' => 'Password123456', 'password_confirmation' => 'Password123456', 'roles' => ['owner']])->assertRedirect('/login');
         $this->assertSame(['prospect'], $this->store->query('users')[0]['roles']);
         $this->assertNull($this->store->query('users')[0]['email_verified_at']);
-        $this->getJson('/api/v1/settings')->assertForbidden();
+        $this->actingAs(new CrmUser($this->store->query('users')[0]))->getJson('/api/v1/settings')->assertForbidden();
     }
 
     public function test_login_uses_repository_identity_and_regenerates_session(): void

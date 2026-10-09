@@ -123,6 +123,7 @@ export default function AuthForm({
                 }}
                 className="form-stack"
             >
+                <Alert kind="success">{page.props.status}</Alert>
                 <Alert>
                     {localError || errors.message || errors.authentication}
                 </Alert>

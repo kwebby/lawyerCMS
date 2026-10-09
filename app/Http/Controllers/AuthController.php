@@ -9,11 +9,13 @@ use App\Auth\MfaLockout;
 use App\Contracts\RecordStore;
 use App\Support\Access;
 use App\Support\Audit;
+use App\Support\Conflict;
 use App\Support\Outbox;
 use App\Support\RecoveryCodes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -71,7 +73,9 @@ final class AuthController extends Controller
         $user = $this->store->transaction(function () use ($data) {
             $index = $this->store->get('identity_emails', $this->identity($data['email']));
             $user = $index ? $this->store->get('users', $index['user_id']) : null;
-            if (! $user || ($user['status'] ?? 'active') !== 'active' || (! empty($user['access_expires_at']) && Carbon::parse($user['access_expires_at'])->isPast()) || ! Hash::check($data['password'], $user['password'])) {
+            // Always pay for one password check so timing does not reveal whether, or in what state, an account exists.
+            $matches = Hash::check($data['password'], $user['password'] ?? $this->dummyHash());
+            if (! $user || ! $matches || ($user['status'] ?? 'active') !== 'active' || (! empty($user['access_expires_at']) && Carbon::parse($user['access_expires_at'])->isPast())) {
                 return null;
             }
             if (Hash::needsRehash($user['password'])) {
@@ -87,6 +91,12 @@ final class AuthController extends Controller
         $this->audit->log(Auth::id(), 'identity.login', 'users', Auth::id());
 
         return redirect()->intended(config('crm.require_mfa') && ! array_intersect(['client', 'prospect'], Auth::user()->roles) ? '/mfa' : '/app');
+    }
+
+    /** A stored hash of a random secret with the current hashing parameters, so checking it costs what a real check costs. */
+    private function dummyHash(): string
+    {
+        return Cache::rememberForever('auth.dummy-hash.'.md5((string) json_encode(config('hashing'))), fn () => Hash::make(Str::random(40)));
     }
 
     private function signIn(Request $request, array $user): void
@@ -116,7 +126,7 @@ final class AuthController extends Controller
         if ($this->store->get('identity_emails', $key)) {
             throw ValidationException::withMessages(['email' => 'An account with this email already exists.']);
         }
-        $user = $this->store->create('users', ['name' => $data['name'], 'email' => $email, 'password' => Hash::make($data['password']), 'roles' => $roles, 'status' => 'active', 'session_epoch' => 0, 'access_expires_at' => $data['access_expires_at'] ?? null, 'email_verified_at' => $verified ? now()->toISOString() : null]);
+        $user = $this->store->create('users', ['name' => $data['name'], 'email' => $email, 'password' => $data['password_hash'] ?? Hash::make($data['password']), 'roles' => $roles, 'status' => 'active', 'session_epoch' => 0, 'access_expires_at' => $data['access_expires_at'] ?? null, 'email_verified_at' => $verified ? now()->toISOString() : null]);
         $this->store->create('identity_emails', ['user_id' => $user['id']], $key);
 
         return $user;
@@ -126,15 +136,26 @@ final class AuthController extends Controller
     {
         abort_unless($this->store->get('settings', 'installation') !== null, 404);
         $data = $request->validate(['name' => 'required|string|max:120', 'email' => 'required|email|max:254', 'password' => ['required', 'confirmed', Password::min(12)->letters()->numbers()]]);
-        $user = $this->store->transaction(function () use ($data) {
-            $user = $this->createUser($data, ['prospect']);
-            $this->issueToken($user, 'verify', 60);
+        $data['password_hash'] = Hash::make($data['password']);
+        unset($data['password'], $data['password_confirmation']);
+        // The response never says whether the address was free: only its mailbox learns, after the response is sent.
+        defer(function () use ($data) {
+            try {
+                $this->store->transaction(function () use ($data) {
+                    $existing = $this->existingAccount($data['email']);
+                    if ($existing) {
+                        $this->outbox->enqueue('email', ['to' => $existing['email'], 'subject' => 'Someone tried to register with your email', 'body' => 'An account already exists for this address. If that was you, sign in or reset your password at '.url('/forgot-password').'. Otherwise no action is needed.']);
 
-            return $user;
+                        return;
+                    }
+                    $this->issueToken($this->createUser($data, ['prospect']), 'verify', 60);
+                });
+            } catch (Conflict) {
+                // A simultaneous registration for the same address won; its owner already has the verification email.
+            }
         });
-        $this->signIn($request, $user);
 
-        return redirect('/portal');
+        return redirect('/login')->with('status', 'Check your email to confirm your address, then sign in.');
     }
 
     private function issueToken(array $user, string $kind, int $minutes): void
@@ -176,10 +197,13 @@ final class AuthController extends Controller
     public function forgot(Request $request): mixed
     {
         $data = $request->validate(['email' => 'required|email']);
-        $index = $this->store->get('identity_emails', $this->identity($data['email']));
-        if ($index) {
-            $this->store->transaction(fn () => $this->issueToken($this->store->get('users', $index['user_id']), 'reset', 30));
-        }
+        // Look the address up only after the response is sent, so known and unknown addresses look and time the same.
+        defer(fn () => $this->store->transaction(function () use ($data) {
+            $user = $this->existingAccount($data['email']);
+            if ($user) {
+                $this->issueToken($user, 'reset', 30);
+            }
+        }));
 
         return response()->json(['message' => 'If an account exists, a reset link will be sent.']);
     }
