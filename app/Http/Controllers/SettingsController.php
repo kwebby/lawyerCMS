@@ -6,6 +6,7 @@ namespace App\Http\Controllers;
 
 use App\Auth\CrmUser;
 use App\Contracts\RecordStore;
+use App\Domain\Finance\Currency;
 use App\Support\Access;
 use App\Support\Audit;
 use App\Support\EndpointPolicy;
@@ -37,7 +38,7 @@ final class SettingsController extends Controller
         $this->access->authorize($request->user(), 'settings.write');
         $input = $request->validate(['section' => 'required|in:business,mail,ai,security', 'data' => 'required|array']);
         $rules = match ($input['section']) {
-            'business' => ['legal_name' => 'required|string|max:160', 'trading_name' => 'nullable|string|max:160', 'address' => 'nullable|string|max:1000', 'email' => 'nullable|email', 'phone' => 'nullable|string|max:60', 'website' => 'nullable|url:https', 'tax_id' => 'nullable|string|max:120', 'registration_id' => 'nullable|string|max:120', 'currency' => 'required|string|size:3', 'invoice_prefix' => 'nullable|regex:/^[A-Z0-9-]{1,12}$/', 'payment_instructions' => 'nullable|string|max:3000', 'terms' => 'nullable|string|max:3000', 'invoice_template' => 'nullable|array', 'logo_file_id' => 'nullable|string|max:100', 'signature' => 'nullable|string|max:300', 'offices' => 'nullable|array|max:50'],
+            'business' => ['legal_name' => 'required|string|max:160', 'trading_name' => 'nullable|string|max:160', 'address' => 'nullable|string|max:1000', 'email' => 'nullable|email', 'phone' => 'nullable|string|max:60', 'website' => 'nullable|url:https', 'tax_id' => 'nullable|string|max:120', 'registration_id' => 'nullable|string|max:120', 'currency' => ['required', Currency::rule()], 'invoice_prefix' => 'nullable|regex:/^[A-Z0-9-]{1,12}$/', 'payment_instructions' => 'nullable|string|max:3000', 'terms' => 'nullable|string|max:3000', 'invoice_template' => 'nullable|array', 'logo_file_id' => 'nullable|string|max:100', 'signature' => 'nullable|string|max:300', 'offices' => 'nullable|array|max:50'],
             'mail' => ['host' => 'required|string|max:254', 'port' => 'required|integer|in:465,587', 'encryption' => 'required|in:tls,ssl', 'username' => 'required|string|max:254', 'password' => 'nullable|string|max:1000', 'from_address' => 'required|email', 'from_name' => 'required|string|max:160', 'reply_to' => 'nullable|email'],
             'ai' => ['enabled' => 'required|boolean', 'provider' => 'required|in:openai,anthropic,gemini,ollama,openai-compatible', 'model' => 'required|string|max:100', 'api_key' => 'nullable|string|max:1000', 'endpoint' => 'nullable|url', 'daily_limit' => 'integer|min:1|max:1000', 'public_tools_approved' => 'boolean', 'jurisdiction' => 'nullable|string|max:100'],
             'security' => ['retention_days' => 'integer|min:30|max:36500', 'notification_digest' => 'in:off,daily,weekly', 'allow_self_approval' => 'sometimes|boolean'],

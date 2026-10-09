@@ -200,4 +200,11 @@ final class FinanceTest extends BusinessTestCase
         $this->assertSame('Brand One', $fresh['snapshot']['business']['legal_name']);
         $this->assertSame($pdf, app(FinancialDocuments::class)->invoice($fresh));
     }
+
+    public function test_business_default_currency_must_be_a_supported_iso_code(): void
+    {
+        $business = ['legal_name' => 'Example Legal LLP', 'address' => '10 Court Road'];
+        $this->patchJson('/api/v1/settings', ['section' => 'business', 'data' => $business + ['currency' => 'XYZ']])->assertUnprocessable()->assertJsonValidationErrors('currency');
+        $this->patchJson('/api/v1/settings', ['section' => 'business', 'data' => $business + ['currency' => 'EUR']])->assertOk()->assertJsonPath('data.currency', 'EUR');
+    }
 }

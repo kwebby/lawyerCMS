@@ -30,7 +30,7 @@ final class ContentController extends Controller
         $collection = $this->collection($request);
         $records = array_values(array_filter($this->access->filter($request->user(), $collection.'.read', $this->store->each($collection)), fn ($record) => ($record['status'] ?? '') !== 'archived'));
 
-        return response()->json(['data' => array_map(fn ($record) => $this->content->response($record, false), $records)]);
+        return response()->json(['data' => array_map(fn ($record) => $this->access->present($request->user(), $collection, $this->content->response($record, false)), $records)]);
     }
 
     public function show(Request $request, string $id)
@@ -39,7 +39,7 @@ final class ContentController extends Controller
         $record = $this->content->find($collection, $id);
         $this->access->authorize($request->user(), $collection.'.read', $record);
 
-        return response()->json(['data' => $this->content->response($record)]);
+        return response()->json(['data' => $this->access->present($request->user(), $collection, $this->content->response($record))]);
     }
 
     public function store(Request $request)

@@ -21,12 +21,12 @@ final class FinanceController extends Controller
 
     public function invoices(Request $r)
     {
-        return response()->json(['data' => $this->invoices->list($r->user())]);
+        return response()->json(['data' => array_map(fn ($invoice) => $this->access->present($r->user(), 'invoices', $invoice), $this->invoices->list($r->user()))]);
     }
 
     public function invoice(Request $r, string $id)
     {
-        return response()->json(['data' => $this->invoices->find($r->user(), $id)]);
+        return response()->json(['data' => $this->access->present($r->user(), 'invoices', $this->invoices->find($r->user(), $id))]);
     }
 
     public function createInvoice(Request $r)
@@ -69,7 +69,12 @@ final class FinanceController extends Controller
     {
         $this->invoices->find($r->user(), $id);
 
-        return response()->json(['data' => ['payments' => $this->store->query('payments', ['invoice_id' => $id], 500), 'credit_notes' => $this->store->query('credit_notes', ['invoice_id' => $id], 500), 'refunds' => $this->store->query('refunds', ['invoice_id' => $id], 500)]]);
+        $history = [];
+        foreach (['payments', 'credit_notes', 'refunds'] as $collection) {
+            $history[$collection] = array_map(fn ($record) => $this->access->present($r->user(), $collection, $record), $this->store->query($collection, ['invoice_id' => $id], 500));
+        }
+
+        return response()->json(['data' => $history]);
     }
 
     public function creditPdf(Request $r, string $id)

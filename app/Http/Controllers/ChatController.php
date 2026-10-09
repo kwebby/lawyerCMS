@@ -51,7 +51,7 @@ final class ChatController extends Controller
             $read = $this->store->get('chat_reads', hash('sha256', $record['id'].':'.$request->user()->id));
             $record['unread_count'] = max(0, $record['last_sequence'] - ($read['sequence'] ?? 0));
 
-            return $record;
+            return $this->access->present($request->user(), 'conversations', $record);
         }, array_values($records));
 
         return response()->json(['data' => $records]);
