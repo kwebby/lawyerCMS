@@ -80,6 +80,61 @@ final class BackupTest extends TestCase
         $this->assertDirectoryDoesNotExist($this->directory.'/restored-vault/temporary');
     }
 
+    public function test_untrusted_text_shaped_like_a_vault_path_never_blocks_a_backup(): void
+    {
+        $lookalike = 'documents/00000000-0000-0000-0000-000000000000.enc';
+        $temporary = 'temporary/00000000-0000-0000-0000-000000000000.enc';
+        $lead = $this->store->create('leads', ['name' => $lookalike, 'jurisdiction' => $temporary, 'email' => 'visitor@example.test', 'source' => 'website', 'status' => 'new']);
+        $message = $this->store->create('messages', ['conversation_id' => 'c1', 'body' => $temporary, 'attachment_ids' => []]);
+        $this->store->create('message_revisions', ['message_id' => $message['id'], 'body' => $lookalike]);
+        $this->store->create('themes', ['name' => 'Imported', 'navigation' => [['label' => 'x', 'path' => $temporary]], 'tokens' => ['font' => $lookalike], 'assets' => []]);
+        $file = app(PrivateFiles::class)->write('Retained letter', 'quarantine');
+        $this->store->create('documents', ['title' => $lookalike, 'name' => $temporary, 'path' => $file, 'status' => 'clean']);
+        $archive = $this->directory.'/firm.lcrm';
+        $result = app(Backup::class)->create($archive, self::PASSWORD);
+        $this->assertSame(5, $result['records']);
+        $this->assertSame(1, $result['files']);
+        DB::table('crm_records')->delete();
+        config(['crm.private_path' => $this->directory.'/restored-vault']);
+        app(Backup::class)->restore($archive, self::PASSWORD);
+        $this->assertSame($lookalike, $this->store->get('leads', $lead['id'])['name']);
+        $this->assertSame('Retained letter', app(PrivateFiles::class)->read($file));
+    }
+
+    public function test_application_file_fields_are_copied_and_a_missing_or_temporary_reference_still_aborts(): void
+    {
+        $files = app(PrivateFiles::class);
+        $page = $files->write('[]', 'content');
+        $published = $files->write('[{"type":"paragraph"}]', 'content');
+        $revision = $files->write('[]', 'content');
+        $asset = $files->write('theme image', 'theme_assets');
+        $variant = $files->write('resized image', 'website_media');
+        $this->store->create('pages', ['title' => 'Home', 'blocks_path' => $page, 'published_snapshot' => ['blocks_path' => $published]]);
+        $this->store->create('content_revisions', ['collection' => 'pages', 'snapshot' => ['blocks_path' => $revision]]);
+        $this->store->create('themes', ['name' => 'Imported', 'assets' => ['hero.png' => ['path' => $asset, 'mime' => 'image/png']]]);
+        $this->store->create('website_media', ['status' => 'ready', 'path' => $files->write('image', 'website_media'), 'variants' => [['width' => 768, 'path' => $variant]]]);
+        $this->store->create('invoices', ['number' => 'INV-1', 'pdf_path' => null]);
+        $archive = $this->directory.'/firm.lcrm';
+        $this->assertSame(6, app(Backup::class)->create($archive, self::PASSWORD)['files']);
+        DB::table('crm_records')->delete();
+        config(['crm.private_path' => $this->directory.'/restored-vault']);
+        app(Backup::class)->restore($archive, self::PASSWORD);
+        $this->assertSame('[{"type":"paragraph"}]', $files->read($published));
+        $this->assertSame('resized image', $files->read($variant));
+        config(['crm.private_path' => $this->directory.'/source-vault']);
+        foreach ([['payslips', ['pdf_path' => 'financial/00000000-0000-0000-0000-000000000000.enc'], 'missing'], ['website_media', ['variants' => [['path' => 'website_media/00000000-0000-0000-0000-000000000000.enc']]], 'missing'], ['documents', ['path' => 'temporary/00000000-0000-0000-0000-000000000000.enc'], 'temporary']] as $i => [$collection, $data, $message]) {
+            $record = $this->store->create($collection, $data);
+            try {
+                app(Backup::class)->create($this->directory.'/broken-'.$i.'.lcrm', self::PASSWORD);
+                $this->fail('A broken private file reference was not detected.');
+            } catch (\RuntimeException $error) {
+                $this->assertStringContainsString($message, $error->getMessage());
+            }
+            $this->assertFileDoesNotExist($this->directory.'/broken-'.$i.'.lcrm');
+            $this->store->delete($collection, $record['id']);
+        }
+    }
+
     public function test_tampering_wrong_passphrase_and_truncation_never_modify_the_destination(): void
     {
         $this->store->create('contacts', ['name' => 'One']);

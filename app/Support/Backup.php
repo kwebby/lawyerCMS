@@ -16,6 +16,20 @@ final class Backup
 
     private const FILE_CHUNK = 65_536;
 
+    /** Fields the application writes vault references into ('*' is any key). Every other string is record data, never a file reference. */
+    private const FILE_FIELDS = [
+        'ai_runs' => ['result_path'],
+        'content_revisions' => ['snapshot.blocks_path'],
+        'documents' => ['path', 'blocks_path'],
+        'invoices' => ['pdf_path'],
+        'pages' => ['blocks_path', 'published_snapshot.blocks_path'],
+        'payslips' => ['pdf_path'],
+        'theme_uploads' => ['path'],
+        'themes' => ['assets.*.path'],
+        'website_fonts' => ['assets.*.path'],
+        'website_media' => ['path', 'variants.*.path'],
+    ];
+
     public function __construct(private RecordStore $store) {}
 
     public function create(string $target, string $passphrase): array
@@ -71,7 +85,7 @@ final class Backup
                     $this->validateRecord($entry);
                     $send(['type' => 'record', 'data' => $entry]);
                     $counts['records']++;
-                    foreach ($this->fileReferences($entry['record']) as $path) {
+                    foreach ($this->fileReferences($entry['collection'], $entry['record']) as $path) {
                         $marker = $scratch.'/seen/'.hash('sha256', $path);
                         if (is_file($marker)) {
                             continue;
@@ -313,7 +327,7 @@ final class Backup
                         if (file_exists($marker)) {
                             throw new \RuntimeException('Duplicate record in backup.');
                         } touch($marker);
-                        foreach ($this->fileReferences($entry['record']) as $path) {
+                        foreach ($this->fileReferences($entry['collection'], $entry['record']) as $path) {
                             touch($scratch.'/refs/'.hash('sha256', $path));
                         }
                         if ($stage) {
@@ -398,7 +412,7 @@ final class Backup
                     }
                     $this->store->delete($entry['collection'], $record['id'], $record['version']);
                 }
-                foreach ($this->fileReferences($record) as $path) {
+                foreach ($this->fileReferences($entry['collection'], $record) as $path) {
                     $full = $this->vaultFile($path);
                     if (is_file($full)) {
                         unlink($full);
@@ -430,17 +444,33 @@ final class Backup
         return false;
     }
 
-    private function fileReferences(array $data): array
+    private function fileReferences(string $collection, array $record): array
     {
         $paths = [];
-        array_walk_recursive($data, function ($value) use (&$paths) {
-            if (is_string($value) && preg_match('~^[a-z_]+/[a-f0-9-]{36}\.enc$~D', $value)) {
-                $this->validatePath($value);
-                $paths[$value] = $value;
+        foreach (self::FILE_FIELDS[$collection] ?? [] as $field) {
+            foreach ($this->fieldValues($record, explode('.', $field)) as $value) {
+                if ($value !== null && $value !== '') {
+                    $this->validatePath(is_string($value) ? $value : '');
+                    $paths[$value] = $value;
+                }
             }
-        });
+        }
 
         return array_values($paths);
+    }
+
+    private function fieldValues(mixed $value, array $keys): array
+    {
+        if ($keys === []) {
+            return [$value];
+        }
+        if (! is_array($value)) {
+            return [];
+        }
+        $key = array_shift($keys);
+        $children = $key === '*' ? array_values($value) : (array_key_exists($key, $value) ? [$value[$key]] : []);
+
+        return array_merge([], ...array_map(fn ($child) => $this->fieldValues($child, $keys), $children));
     }
 
     private function validateRecord(array $entry): void

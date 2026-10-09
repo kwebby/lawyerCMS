@@ -35,7 +35,7 @@ Schedule this procedure daily during a planned maintenance window. Alert on nonz
 
 ## Exclusions
 
-Temporary analyzer uploads, analyzer verification grants, public AI results, public analyzer jobs and verification/result emails, public quota identifiers, identity reset/verification tokens, server sessions and unreferenced vault files are excluded. A lead explicitly created from an analyzer result remains a business record. An unexpected reference from a retained business record into `temporary/` aborts the backup instead of copying temporary material. Move retained documents into the normal private-document lifecycle before backing up.
+Temporary analyzer uploads, analyzer verification grants, public AI results, public analyzer jobs and verification/result emails, public quota identifiers, identity reset/verification tokens, server sessions and unreferenced vault files are excluded. A lead explicitly created from an analyzer result remains a business record. An unexpected reference from a retained business record's file field into `temporary/` aborts the backup instead of copying temporary material. Move retained documents into the normal private-document lifecycle before backing up.
 
 Application caches, compiled assets, logs, native database tables outside `crm_records`, and PHP session files are not part of this format. Restored users sign in again; expired email verification/reset links must be requested again. Pending ordinary business jobs are preserved, so review integration configuration and outstanding deliveries before restarting workers.
 
@@ -64,7 +64,7 @@ A real managed Supabase/Firestore restore and production-size restore timing rem
 
 ## Backup coverage and operator record
 
-The portable archive is an application backup, not a full host image. It includes retained record metadata plus recognized private encrypted file references, including document versions, theme/media assets and installed font files/licenses. Bundled fonts and application source belong to the matching release archive. Preserve any custom server files, certificates, system jobs and external service configuration separately.
+The portable archive is an application backup, not a full host image. It includes retained record metadata plus the private encrypted files referenced from the application's own file fields (`Backup::FILE_FIELDS`): uploaded and written documents, page and document revisions, non-public AI results, issued invoice and payslip PDFs, theme uploads/assets, website media and its resized variants, and installed font files/licenses. Text typed into other fields (enquiries, chat messages, names, theme tokens) is never treated as a file reference, even when it looks like a vault path. A referenced file that is missing from the vault aborts the backup. When a new feature stores a vault path in a record, add that field to the list and to the backup tests. Bundled fonts and application source belong to the matching release archive. Preserve any custom server files, certificates, system jobs and external service configuration separately.
 
 The `.lcrm` extension is retained for format compatibility; renaming the product did not change archive format 1. Do not rename record collections or encrypted vault paths inside an archive.
 
