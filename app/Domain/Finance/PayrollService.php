@@ -6,6 +6,7 @@ namespace App\Domain\Finance;
 
 use App\Contracts\RecordStore;
 use App\Support\Access;
+use App\Support\Approvals;
 use App\Support\Audit;
 use App\Support\Outbox;
 use Illuminate\Support\Facades\Validator;
@@ -13,7 +14,7 @@ use Illuminate\Validation\ValidationException;
 
 final class PayrollService
 {
-    public function __construct(private RecordStore $store, private Access $access, private Audit $audit, private Outbox $outbox) {}
+    public function __construct(private RecordStore $store, private Access $access, private Audit $audit, private Outbox $outbox, private Approvals $approvals) {}
 
     public function list($user): array
     {
@@ -69,7 +70,7 @@ final class PayrollService
         abort_if(strlen(json_encode($data, JSON_THROW_ON_ERROR)) > 131072, 422, 'This financial record exceeds the portable 128 KiB limit. Split it into smaller documents.');
         $version = $data['version'] ?? null;
         unset($data['version']);
-        $record = array_replace($old ?? ['owner_id' => $user->id, 'status' => 'draft', 'client_ids' => [], 'team_ids' => []], $data, ['total_minor' => (string) $total]);
+        $record = array_replace($old ?? ['owner_id' => $user->id, 'prepared_by' => $user->id, 'status' => 'draft', 'client_ids' => [], 'team_ids' => []], $data, ['total_minor' => (string) $total, 'updated_by' => $user->id]);
 
         return $this->store->transaction(function () use ($user, $record, $version, $id) {
             if ($id) {
@@ -96,6 +97,12 @@ final class PayrollService
                 return $run;
             }
             abort_unless($run['status'] === $from, 409, 'Follow the draft, review, approval, release sequence.');
+            if ($action === 'approve') {
+                $this->approvals->ensureIndependent($user, [$run['prepared_by'] ?? $run['owner_id'] ?? null, $run['updated_by'] ?? null], 'payroll run', 'payroll_runs', $id);
+            }
+            if ($action !== 'review') {
+                $this->approvals->ensureIndependent($user, array_column($run['employees'], 'employee_id'), 'payroll '.($action === 'approve' ? 'run' : 'release').' because it includes your own payslip', 'payroll_runs', $id);
+            }
             $changes = ['status' => $to, $to.'_by' => $user->id, $to.'_at' => now()->toIso8601String()];
             if ($action === 'approve') {
                 $business = $this->store->get('settings', 'business') ?? [];

@@ -24,9 +24,10 @@ final class EmployeeInputsTest extends BusinessTestCase
     public function test_approved_inputs_generate_an_idempotent_draft_and_freeze_source_snapshots(): void
     {
         $person = $this->user('lawyer');
+        $hr = $this->user('hr');
         $service = app(EmployeeInputs::class);
         $comp = $service->save($this->owner, 'compensation', ['employee_id' => $person->id, 'effective_from' => '2026-10', 'currency' => 'USD', 'earnings' => [['label' => 'Base', 'amount_minor' => '500000']], 'deductions' => [['label' => 'Approved deduction', 'amount_minor' => '10000']]]);
-        $service->decide($this->owner, 'compensation', $comp['id'], ['decision' => 'approved', 'notes' => 'Agreed compensation']);
+        $service->decide($hr, 'compensation', $comp['id'], ['decision' => 'approved', 'notes' => 'Agreed compensation']);
         $att = $service->save($person, 'attendance', ['period' => '2026-10', 'scheduled_minutes' => 9600, 'worked_minutes' => 9600]);
         $service->decide($this->owner, 'attendance', $att['id'], ['decision' => 'approved', 'notes' => 'Records checked']);
         $request = ['period' => '2026-10', 'currency' => 'USD', 'employee_ids' => [$person->id], 'idempotency_key' => 'payroll-fixture-key'];
@@ -43,12 +44,14 @@ final class EmployeeInputsTest extends BusinessTestCase
     public function test_compensation_overlap_and_invalid_leave_references_are_rejected(): void
     {
         $person = $this->user('lawyer');
+        $hr = $this->user('hr');
         $service = app(EmployeeInputs::class);
         $data = ['employee_id' => $person->id, 'effective_from' => '2026-10', 'currency' => 'USD', 'earnings' => [['label' => 'Base', 'amount_minor' => '10000']]];
         $first = $service->save($this->owner, 'compensation', $data);
-        $service->decide($this->owner, 'compensation', $first['id'], ['decision' => 'approved', 'notes' => 'Checked']);
+        // The owner submitted these plans, so another HR user approves them.
+        $service->decide($hr, 'compensation', $first['id'], ['decision' => 'approved', 'notes' => 'Checked']);
         $next = $service->save($this->owner, 'compensation', $data);
-        $this->postJson('/api/v1/employee-inputs/compensation/'.$next['id'].'/decision', ['decision' => 'approved', 'notes' => 'Checked'])->assertUnprocessable();
+        $this->actingAs($hr)->withSession(['auth.confirmed_at' => time()])->postJson('/api/v1/employee-inputs/compensation/'.$next['id'].'/decision', ['decision' => 'approved', 'notes' => 'Checked'])->assertUnprocessable();
         $att = $service->save($person, 'attendance', ['period' => '2026-10', 'scheduled_minutes' => 9600, 'worked_minutes' => 8000, 'approved_leave_ids' => ['not-approved']]);
         $this->postJson('/api/v1/employee-inputs/attendance/'.$att['id'].'/decision', ['decision' => 'approved', 'notes' => 'Checked'])->assertUnprocessable();
         $this->assertSame('submitted', $this->store->get('employee_attendance', $att['id'])['status']);

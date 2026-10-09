@@ -6,6 +6,7 @@ namespace App\Domain\Finance;
 
 use App\Contracts\RecordStore;
 use App\Support\Access;
+use App\Support\Approvals;
 use App\Support\Audit;
 use App\Support\Outbox;
 use Illuminate\Support\Facades\Validator;
@@ -15,7 +16,9 @@ final class EmployeeInputs
 {
     public const COLLECTIONS = ['leave' => 'employee_leave', 'attendance' => 'employee_attendance', 'compensation' => 'employee_compensation'];
 
-    public function __construct(private RecordStore $store, private Access $access, private Audit $audit, private Outbox $outbox, private PayrollService $payroll) {}
+    private const LABELS = ['leave' => 'leave request', 'attendance' => 'attendance record', 'compensation' => 'compensation plan'];
+
+    public function __construct(private RecordStore $store, private Access $access, private Audit $audit, private Outbox $outbox, private PayrollService $payroll, private Approvals $approvals) {}
 
     private function staff(string $id): array
     {
@@ -88,6 +91,8 @@ final class EmployeeInputs
             $person = $this->staff($record['employee_id']); // Serializes approvals for each employee on SQL and participates in Firestore transaction reads.
             abort_unless($record['status'] === 'submitted', 409, 'This input has already been decided.');
             if ($data['decision'] === 'approved') {
+                // Neither the employee concerned nor the person who submitted the input may approve it.
+                $this->approvals->ensureIndependent($user, [$record['employee_id'], $record['created_by'] ?? null], self::LABELS[$kind], $collection, $id);
                 if ($kind === 'attendance') {
                     foreach ($record['approved_leave_ids'] ?? [] as $leaveId) {
                         $leave = $this->store->get('employee_leave', $leaveId);

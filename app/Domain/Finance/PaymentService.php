@@ -235,7 +235,7 @@ final class PaymentService
         $data = Validator::make($input, ['amount_minor' => 'required', 'reference' => 'required|string|max:500', 'idempotency_key' => 'required|string|min:8|max:100'])->validate();
         $amount = (string) Money::minor($data['amount_minor'], allowZero: false);
         if (in_array($payment['method'], ['bank_transfer', 'cash'], true)) {
-            return $this->invoices->refundRecord($paymentId, $amount, $data['reference'], 'manual:'.$data['idempotency_key'], $user->id);
+            return $this->invoices->refundRecord($paymentId, $amount, $data['reference'], 'manual:'.$data['idempotency_key'], $user->id, $user);
         }
         $this->gateway($payment['method'])->amount($amount, $payment['currency']);
         $requestId = substr(hash('sha256', $paymentId.':'.$data['idempotency_key']), 0, 32);

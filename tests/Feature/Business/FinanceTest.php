@@ -41,7 +41,8 @@ final class FinanceTest extends BusinessTestCase
         $service->refundRecord($payment['id'], '4000', 'REF-123', 'refund-123', $this->owner->id);
         $service->refundRecord($payment['id'], '4000', 'REF-123', 'refund-123', $this->owner->id);
         $this->assertSame('6000', $service->find($this->owner, $invoice['id'])['paid_minor']);
-        $credit = $service->credit($this->owner, $invoice['id'], ['amount_minor' => '16000', 'reason' => 'Scope reduction', 'idempotency_key' => 'credit-123']);
+        // A credit note must come from someone other than the person who issued the invoice.
+        $credit = $service->credit($this->user('accounts'), $invoice['id'], ['amount_minor' => '16000', 'reason' => 'Scope reduction', 'idempotency_key' => 'credit-123']);
         $this->assertSame('16000', $credit['amount_minor']);
         $updated = $service->find($this->owner, $invoice['id']);
         $this->assertSame('paid', $updated['status']);
@@ -89,7 +90,7 @@ final class FinanceTest extends BusinessTestCase
         $run = $service->save($this->owner, ['period' => '2026-10', 'currency' => 'USD', 'employees' => [['employee_id' => $employee->id, 'name' => 'Lawyer name', 'earnings' => [['label' => 'Salary', 'amount_minor' => '500000']], 'deductions' => [['label' => 'Leave deduction', 'amount_minor' => '25000']]]]]);
         $this->postJson('/api/v1/payroll-runs/'.$run['id'].'/release')->assertConflict();
         $service->transition($this->owner, $run['id'], 'review');
-        $service->transition($this->owner, $run['id'], 'approve');
+        $service->transition($this->user('hr'), $run['id'], 'approve'); // The preparer cannot approve their own run.
         $service->transition($this->owner, $run['id'], 'release');
         $service->transition($this->owner, $run['id'], 'release');
         $slips = $service->slips($employee);
@@ -109,7 +110,7 @@ final class FinanceTest extends BusinessTestCase
         $payroll = app(PayrollService::class);
         $run = $payroll->save($this->owner, ['period' => '2026-10', 'currency' => 'USD', 'employees' => [['employee_id' => $employee->id, 'name' => 'Employee', 'earnings' => [['label' => 'Salary', 'amount_minor' => '500000']]]]]);
         $payroll->transition($this->owner, $run['id'], 'review');
-        $payroll->transition($this->owner, $run['id'], 'approve');
+        $payroll->transition($this->user('hr'), $run['id'], 'approve');
         $payroll->transition($this->owner, $run['id'], 'release');
         $slip = $payroll->slips($employee)[0];
         $this->assertArrayNotHasKey('pdf_path', $invoice);

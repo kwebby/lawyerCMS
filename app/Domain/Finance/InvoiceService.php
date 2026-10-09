@@ -4,8 +4,10 @@
 
 namespace App\Domain\Finance;
 
+use App\Auth\CrmUser;
 use App\Contracts\RecordStore;
 use App\Support\Access;
+use App\Support\Approvals;
 use App\Support\Audit;
 use App\Support\Outbox;
 use Illuminate\Support\Facades\Validator;
@@ -13,7 +15,7 @@ use Illuminate\Validation\Rule;
 
 final class InvoiceService
 {
-    public function __construct(private RecordStore $store, private Access $access, private Audit $audit, private Outbox $outbox) {}
+    public function __construct(private RecordStore $store, private Access $access, private Audit $audit, private Outbox $outbox, private Approvals $approvals) {}
 
     public function list($user): array
     {
@@ -157,6 +159,7 @@ final class InvoiceService
                 return $credit;
             }
             abort_if($invoice['status'] === 'draft', 409, 'Issue an invoice before creating a credit note.');
+            $this->approvals->ensureIndependent($user, [$invoice['issued_by'] ?? null], 'credit note: you issued the original invoice', 'invoices', $invoiceId);
             $credited = (int) ($invoice['credited_minor'] ?? '0') + $amount;
             abort_if($credited > (int) $invoice['total_minor'], 422, 'Credit notes cannot exceed the original invoice total.');
             $credit = $this->store->create('credit_notes', ['invoice_id' => $invoiceId, 'number' => $invoice['number'].'-C-'.substr($creditId, 0, 10), 'owner_id' => $invoice['owner_id'], 'client_ids' => $invoice['client_ids'], 'currency' => $invoice['currency'], 'amount_minor' => (string) $amount, 'reason' => $data['reason'], 'issued_by' => $user->id, 'issued_at' => now()->toIso8601String(), 'business' => $invoice['snapshot']['business'], 'recipient' => $invoice['snapshot']['recipient']], $creditId);
@@ -168,18 +171,22 @@ final class InvoiceService
         });
     }
 
-    public function refundRecord(string $paymentId, mixed $amount, string $reference, string $key, ?string $actorId): array
+    /** $approver is the person deciding a manual refund; they must not be the person who recorded the payment. */
+    public function refundRecord(string $paymentId, mixed $amount, string $reference, string $key, ?string $actorId, ?CrmUser $approver = null): array
     {
         $amount = Money::minor($amount, allowZero: false);
         $refundId = hash('sha256', $paymentId.':'.$key);
 
-        return $this->store->transaction(function () use ($paymentId, $amount, $reference, $refundId, $actorId) {
+        return $this->store->transaction(function () use ($paymentId, $amount, $reference, $refundId, $actorId, $approver) {
             $payment = $this->store->get('payments', $paymentId);
             abort_unless($payment !== null, 404);
             if ($previous = $this->store->get('refunds', $refundId)) {
                 abort_unless($previous['amount_minor'] === (string) $amount, 409, 'Refund key used for a different amount.');
 
                 return $previous;
+            }
+            if ($approver) {
+                $this->approvals->ensureIndependent($approver, [$payment['confirmed_by'] ?? null], 'refund: you recorded the original payment', 'payments', $paymentId);
             }
             $refunded = (int) $payment['refunded_minor'] + $amount;
             abort_if($refunded > (int) $payment['amount_minor'], 409, 'Refund exceeds this payment.');
