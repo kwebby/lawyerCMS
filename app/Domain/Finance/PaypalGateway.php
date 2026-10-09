@@ -75,27 +75,34 @@ final class PaypalGateway implements PaymentGateway
         return $this->http()->withHeaders(['PayPal-Request-Id' => $idempotencyKey])->post($this->base().'/v2/payments/captures/'.rawurlencode($captureId).'/refund', ['amount' => ['currency_code' => $currency, 'value' => $this->decimal($amountMinor, $currency)]])->throw()->json();
     }
 
+    public function amount(string $minor, string $currency): string
+    {
+        return $this->decimal($minor, $currency);
+    }
+
+    /** App amounts are ISO 4217 minor units; PayPal takes a decimal string with its own digits per currency. */
     public function decimal(string $minor, string $currency): string
     {
-        $exponent = $this->exponent($currency);
-        $minor = (string) Money::minor($minor);
-        if ($exponent === 0) {
-            return $minor;
+        $digits = $this->digits($currency);
+        $scale = 10 ** (Currency::exponent($currency) - $digits);
+        $minor = Money::minor($minor);
+        if ($minor % $scale !== 0) {
+            throw ValidationException::withMessages(['amount_minor' => 'PayPal accepts only whole '.$currency.' amounts. Record this payment manually or use another payment method.']);
         }
 
-        return substr(str_pad($minor, 3, '0', STR_PAD_LEFT), 0, -2).'.'.substr(str_pad($minor, 3, '0', STR_PAD_LEFT), -2);
+        return Currency::decimal((string) intdiv($minor, $scale), $digits);
     }
 
     public function minor(string $amount, string $currency): string
     {
-        $exponent = $this->exponent($currency);
-        abort_unless(preg_match($exponent === 0 ? '/^[0-9]+(?:\.0{1,2})?$/D' : '/^[0-9]+(?:\.[0-9]{1,2})?$/D', $amount), 422, 'Invalid provider amount.');
-        [$whole, $fraction] = array_pad(explode('.', $amount), 2, '');
+        $digits = $this->digits($currency);
+        abort_unless(preg_match('/^([0-9]+)(?:\.([0-9]{1,2}))?$/D', $amount, $m) && strlen(rtrim($m[2] ?? '', '0')) <= $digits, 422, 'Invalid provider amount.');
 
-        return (string) Money::minor(ltrim($whole.($exponent ? str_pad($fraction, 2, '0') : ''), '0') ?: '0');
+        return (string) Money::minor(ltrim($m[1].str_pad(rtrim($m[2] ?? '', '0'), Currency::exponent($currency), '0'), '0') ?: '0');
     }
 
-    private function exponent(string $currency): int
+    /** PayPal's decimal digits: HUF, JPY and TWD are whole numbers only; the other supported currencies use two. */
+    private function digits(string $currency): int
     {
         if (in_array($currency, ['HUF', 'JPY', 'TWD'], true)) {
             return 0;

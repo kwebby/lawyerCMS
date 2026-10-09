@@ -64,7 +64,7 @@ final class BillingWorkService
         $old = $id ? $this->find($user, $collection, $id, 'write') : null;
         $this->access->authorize($user, $collection.'.write', $old);
         abort_if($old && $old['status'] !== 'draft', 409, 'Only draft time and expenses can be edited. Reject submitted work for correction.');
-        $rules = ['version' => $id ? 'required|integer|min:1' : 'prohibited', 'matter_id' => 'required|string|max:100', 'description' => 'required|string|max:2000', 'billing_description' => 'sometimes|string|max:1000', 'work_date' => 'required|date_format:Y-m-d|before_or_equal:today', 'currency' => ['required', 'regex:/^[A-Z]{3}$/D'], 'billable' => 'sometimes|boolean', 'tax_bps' => 'sometimes|integer|min:0|max:10000'];
+        $rules = ['version' => $id ? 'required|integer|min:1' : 'prohibited', 'matter_id' => 'required|string|max:100', 'description' => 'required|string|max:2000', 'billing_description' => 'sometimes|string|max:1000', 'work_date' => 'required|date_format:Y-m-d|before_or_equal:today', 'currency' => ['required', Currency::rule()], 'billable' => 'sometimes|boolean', 'tax_bps' => 'sometimes|integer|min:0|max:10000'];
         $rules = array_merge($rules, $collection === 'time_entries' ? ['minutes' => 'required|integer|min:1|max:1440', 'rate_minor' => 'required'] : ['amount_minor' => 'required', 'receipt_id' => 'sometimes|nullable|string|max:100']);
         $data = Validator::make($input, $rules)->validate();
         $matter = $this->matter($user, $data['matter_id']);
@@ -131,7 +131,7 @@ final class BillingWorkService
 
     public function draftInvoice($user, array $input): array
     {
-        $data = Validator::make($input, ['matter_id' => 'required|string|max:100', 'time_entry_ids' => 'sometimes|array|max:50', 'time_entry_ids.*' => 'string|max:100|distinct', 'expense_ids' => 'sometimes|array|max:50', 'expense_ids.*' => 'string|max:100|distinct', 'recipient' => 'required|array:name,email,address,tax_id', 'recipient.name' => 'required|string|max:250', 'recipient.email' => 'sometimes|nullable|email|max:254', 'recipient.address' => 'sometimes|nullable|string|max:3000', 'recipient.tax_id' => 'sometimes|nullable|string|max:150', 'client_ids' => 'sometimes|array|max:50', 'client_ids.*' => 'string|max:100', 'currency' => ['required', 'regex:/^[A-Z]{3}$/D'], 'idempotency_key' => 'required|string|min:8|max:120'])->validate();
+        $data = Validator::make($input, ['matter_id' => 'required|string|max:100', 'time_entry_ids' => 'sometimes|array|max:50', 'time_entry_ids.*' => 'string|max:100|distinct', 'expense_ids' => 'sometimes|array|max:50', 'expense_ids.*' => 'string|max:100|distinct', 'recipient' => 'required|array:name,email,address,tax_id', 'recipient.name' => 'required|string|max:250', 'recipient.email' => 'sometimes|nullable|email|max:254', 'recipient.address' => 'sometimes|nullable|string|max:3000', 'recipient.tax_id' => 'sometimes|nullable|string|max:150', 'client_ids' => 'sometimes|array|max:50', 'client_ids.*' => 'string|max:100', 'currency' => ['required', Currency::rule()], 'idempotency_key' => 'required|string|min:8|max:120'])->validate();
         $this->matter($user, $data['matter_id']);
         $this->access->authorize($user, 'invoices.write');
         abort_unless(count($data['time_entry_ids'] ?? []) + count($data['expense_ids'] ?? []) > 0, 422, 'Select approved time or expenses.');

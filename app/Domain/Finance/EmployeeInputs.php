@@ -54,7 +54,7 @@ final class EmployeeInputs
         $rules = match ($kind) {
             'leave' => ['from' => 'required|date_format:Y-m-d', 'to' => 'required|date_format:Y-m-d|after_or_equal:from', 'kind' => ['required', Rule::in(['annual', 'sick', 'unpaid', 'other'])], 'units' => 'required|numeric|min:0.5|max:366', 'coverage_notes' => 'nullable|string|max:2000'],
             'attendance' => ['period' => $month, 'scheduled_minutes' => 'required|integer|min:0|max:44640', 'worked_minutes' => 'required|integer|min:0|max:44640', 'approved_leave_ids' => 'sometimes|array|max:50', 'approved_leave_ids.*' => 'required|string|distinct', 'notes' => 'nullable|string|max:2000'],
-            'compensation' => ['effective_from' => $month, 'effective_to' => ['nullable', 'regex:/^[0-9]{4}-(0[1-9]|1[0-2])$/D'], 'currency' => ['required', 'regex:/^[A-Z]{3}$/D'], 'earnings' => 'required|array|min:1|max:30', 'earnings.*' => 'array:label,amount_minor', 'earnings.*.label' => 'required|string|max:150', 'earnings.*.amount_minor' => 'required', 'deductions' => 'sometimes|array|max:30', 'deductions.*' => 'array:label,amount_minor', 'deductions.*.label' => 'required|string|max:150', 'deductions.*.amount_minor' => 'required'],
+            'compensation' => ['effective_from' => $month, 'effective_to' => ['nullable', 'regex:/^[0-9]{4}-(0[1-9]|1[0-2])$/D'], 'currency' => ['required', Currency::rule()], 'earnings' => 'required|array|min:1|max:30', 'earnings.*' => 'array:label,amount_minor', 'earnings.*.label' => 'required|string|max:150', 'earnings.*.amount_minor' => 'required', 'deductions' => 'sometimes|array|max:30', 'deductions.*' => 'array:label,amount_minor', 'deductions.*.label' => 'required|string|max:150', 'deductions.*.amount_minor' => 'required'],
             default => throw new \InvalidArgumentException('Unknown employee input kind.'),
         };
         $data = Validator::make($input, $rules)->validate();
@@ -118,7 +118,7 @@ final class EmployeeInputs
     {
         $this->access->authorize($user, 'payroll.write');
         $this->access->authorize($user, 'employees.read');
-        $data = Validator::make($input, ['period' => ['required', 'regex:/^[0-9]{4}-(0[1-9]|1[0-2])$/D'], 'currency' => ['required', 'regex:/^[A-Z]{3}$/D'], 'employee_ids' => 'required|array|min:1|max:100', 'employee_ids.*' => 'required|string|distinct', 'idempotency_key' => 'required|string|min:16|max:128'])->validate();
+        $data = Validator::make($input, ['period' => ['required', 'regex:/^[0-9]{4}-(0[1-9]|1[0-2])$/D'], 'currency' => ['required', Currency::rule()], 'employee_ids' => 'required|array|min:1|max:100', 'employee_ids.*' => 'required|string|distinct', 'idempotency_key' => 'required|string|min:16|max:128'])->validate();
         sort($data['employee_ids']);
         $digest = hash('sha256', json_encode([$data['period'], $data['currency'], $data['employee_ids']], JSON_THROW_ON_ERROR));
 

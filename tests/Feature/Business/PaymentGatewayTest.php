@@ -7,7 +7,10 @@ namespace Tests\Feature\Business;
 use App\Domain\Finance\InvoiceService;
 use App\Domain\Finance\PaymentService;
 use App\Domain\Finance\PaypalGateway;
+use App\Domain\Finance\StripeGateway;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 final class PaymentGatewayTest extends BusinessTestCase
 {
@@ -98,5 +101,97 @@ final class PaymentGatewayTest extends BusinessTestCase
         $event = ['id' => 'EVENT1', 'event_type' => 'OTHER.EVENT', 'resource' => []];
         $this->assertSame($event, $gateway->verifyWebhook(json_encode($event), ['paypal-auth-algo' => 'SHA256withRSA', 'paypal-cert-url' => 'http://127.0.0.1/never-fetch-this', 'paypal-transmission-id' => 'transmission', 'paypal-transmission-sig' => 'signature', 'paypal-transmission-time' => now()->toISOString()]));
         Http::assertNotSent(fn ($r) => str_contains($r->url(), '127.0.0.1'));
+    }
+
+    private function setupPaypal(): void
+    {
+        config(['services.paypal.client_id' => 'client', 'services.paypal.secret' => 'secret', 'services.paypal.webhook_id' => 'webhook-id', 'services.paypal.merchant_id' => 'merchant-id', 'services.paypal.mode' => 'sandbox', 'app.url' => 'https://crm.example.test']);
+    }
+
+    private function assertRefused(callable $call, string $field): void
+    {
+        try {
+            $call();
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey($field, $e->errors());
+
+            return;
+        }
+        $this->fail('Expected the provider adapter to refuse this amount or currency.');
+    }
+
+    public function test_paypal_converts_iso_minor_units_and_refuses_amounts_it_cannot_represent(): void
+    {
+        $gateway = app(PaypalGateway::class);
+        foreach ([['10001', 'USD', '100.01'], ['1000000', 'HUF', '10000'], ['250000', 'TWD', '2500'], ['10000', 'JPY', '10000']] as [$minor, $currency, $value]) {
+            $this->assertSame($value, $gateway->decimal($minor, $currency));
+            $this->assertSame($minor, $gateway->minor($value, $currency));
+        }
+        $this->assertSame('1000000', $gateway->minor('10000.00', 'HUF'));
+        foreach ([['1000050', 'HUF', 'amount_minor'], ['250001', 'TWD', 'amount_minor'], ['1000000', 'RSD', 'currency'], ['12345', 'KWD', 'currency'], ['12340', 'BHD', 'currency'], ['100', 'XYZ', 'currency']] as [$minor, $currency, $field]) {
+            $this->assertRefused(fn () => $gateway->decimal($minor, $currency), $field);
+        }
+        try {
+            $gateway->minor('10000.50', 'HUF');
+            $this->fail('PayPal never reports fractional forints.');
+        } catch (HttpException $e) {
+            $this->assertSame(422, $e->getStatusCode());
+        }
+    }
+
+    public function test_stripe_amounts_follow_its_currency_rules_or_are_refused(): void
+    {
+        $gateway = app(StripeGateway::class);
+        foreach ([['22000', 'USD', '22000'], ['1000000', 'HUF', '1000000'], ['250000', 'TWD', '250000'], ['500', 'JPY', '500'], ['1000000', 'RSD', '1000000'], ['12340', 'KWD', '12340'], ['1000', 'BHD', '1000'], ['500000', 'MGA', '5000']] as [$minor, $currency, $amount]) {
+            $this->assertSame($amount, $gateway->amount($minor, $currency));
+            $this->assertSame($minor, $gateway->minor($amount, $currency));
+        }
+        foreach ([['1000050', 'HUF', 'amount_minor'], ['250001', 'TWD', 'amount_minor'], ['12345', 'KWD', 'amount_minor'], ['1005', 'BHD', 'amount_minor'], ['500050', 'MGA', 'amount_minor'], ['500', 'ISK', 'currency'], ['500', 'UGX', 'currency'], ['2125', 'IQD', 'currency'], ['100', 'XYZ', 'currency']] as [$minor, $currency, $field]) {
+            $this->assertRefused(fn () => $gateway->amount($minor, $currency), $field);
+        }
+    }
+
+    public function test_paypal_huf_checkout_requests_whole_forints_and_capture_settles_the_iso_amount(): void
+    {
+        $this->setupPaypal();
+        $service = app(InvoiceService::class);
+        $invoice = $service->issue($this->owner, $service->save($this->owner, $this->invoiceInput(['currency' => 'HUF', 'items' => [['description' => 'Advice', 'quantity' => '1', 'unit_minor' => '1000000', 'tax_bps' => 0]]]))['id']);
+        $unit = ['payee' => ['merchant_id' => 'merchant-id']];
+        $capture = ['id' => 'CAPTUREHUF', 'status' => 'COMPLETED', 'amount' => ['currency_code' => 'HUF', 'value' => '10000']];
+        Http::fake([
+            'api-m.sandbox.paypal.com/v1/oauth2/token' => Http::response(['access_token' => 'access']),
+            'api-m.sandbox.paypal.com/v2/checkout/orders' => Http::response(['id' => 'ORDERHUF', 'links' => [['rel' => 'payer-action', 'href' => 'https://www.sandbox.paypal.com/checkoutnow?token=ORDERHUF']]]),
+            'api-m.sandbox.paypal.com/v2/checkout/orders/ORDERHUF' => Http::sequence()->push(['id' => 'ORDERHUF', 'status' => 'APPROVED', 'purchase_units' => [$unit]])->push(['id' => 'ORDERHUF', 'status' => 'COMPLETED', 'purchase_units' => [array_merge($unit, ['payments' => ['captures' => [$capture]]])]]),
+            'api-m.sandbox.paypal.com/v2/checkout/orders/ORDERHUF/capture' => Http::response(['id' => 'ORDERHUF', 'status' => 'COMPLETED']),
+        ]);
+        $payments = app(PaymentService::class);
+        $checkout = $payments->checkout($this->owner, $invoice['id'], ['provider' => 'paypal', 'idempotency_key' => 'huf-checkout']);
+        Http::assertSent(fn ($r) => str_ends_with($r->url(), '/v2/checkout/orders') && $r['purchase_units'][0]['amount'] === ['currency_code' => 'HUF', 'value' => '10000']);
+        $this->assertSame('paid', $payments->reconcile($this->owner, $checkout['id'])['status']);
+        $this->assertSame('1000000', $this->store->get('invoices', $invoice['id'])['paid_minor']);
+    }
+
+    public function test_fractional_huf_balance_is_refused_before_a_checkout_is_recorded(): void
+    {
+        $this->setupPaypal();
+        $service = app(InvoiceService::class);
+        $invoice = $service->issue($this->owner, $service->save($this->owner, $this->invoiceInput(['currency' => 'HUF', 'items' => [['description' => 'Advice', 'quantity' => '1', 'unit_minor' => '1000050', 'tax_bps' => 0]]]))['id']);
+        $this->postJson('/api/v1/invoices/'.$invoice['id'].'/checkout', ['provider' => 'paypal', 'idempotency_key' => 'huf-fraction'])->assertUnprocessable()->assertJsonValidationErrors('amount_minor');
+        $this->assertCount(0, $this->store->query('checkouts'));
+        Http::assertNothingSent();
+    }
+
+    public function test_stripe_three_decimal_checkout_and_webhook_use_iso_minor_units(): void
+    {
+        config(['services.stripe.secret' => 'sk_test_example', 'services.stripe.webhook_secret' => 'whsec_test_example', 'app.url' => 'https://crm.example.test']);
+        $service = app(InvoiceService::class);
+        $invoice = $service->issue($this->owner, $service->save($this->owner, $this->invoiceInput(['currency' => 'KWD', 'items' => [['description' => 'Advice', 'quantity' => '1', 'unit_minor' => '12340', 'tax_bps' => 0]]]))['id']);
+        Http::fake(['api.stripe.com/v1/checkout/sessions' => Http::response(['id' => 'cs_kwd', 'url' => 'https://checkout.stripe.com/kwd'])]);
+        $payments = app(PaymentService::class);
+        $checkout = $payments->checkout($this->owner, $invoice['id'], ['provider' => 'stripe', 'idempotency_key' => 'kwd-checkout']);
+        Http::assertSent(fn ($r) => $r['line_items'][0]['price_data'] === ['currency' => 'kwd', 'unit_amount' => '12340', 'product_data' => ['name' => 'Invoice '.$invoice['number']]]);
+        $body = json_encode(['id' => 'evt_kwd', 'type' => 'checkout.session.completed', 'data' => ['object' => ['id' => 'cs_kwd', 'client_reference_id' => $checkout['id'], 'metadata' => ['invoice_id' => $invoice['id']], 'payment_status' => 'paid', 'payment_intent' => 'pi_kwd', 'amount_total' => 12340, 'currency' => 'kwd']]]);
+        $payments->webhook('stripe', $body, $this->signed($body));
+        $this->assertSame('12340', $this->store->get('invoices', $invoice['id'])['paid_minor']);
     }
 }

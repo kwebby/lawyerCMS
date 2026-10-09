@@ -127,9 +127,6 @@ final class FinancialDocuments
 
     private function money(string $minor, string $currency): string
     {
-        $exponent = in_array($currency, ['BIF', 'CLP', 'DJF', 'GNF', 'ISK', 'JPY', 'KMF', 'KRW', 'PYG', 'RWF', 'UGX', 'VND', 'VUV', 'XAF', 'XOF', 'XPF'], true) ? 0 : (in_array($currency, ['BHD', 'IQD', 'JOD', 'KWD', 'LYD', 'OMR', 'TND'], true) ? 3 : 2);
-        $digits = str_pad($minor, $exponent + 1, '0', STR_PAD_LEFT);
-
-        return $this->e($currency.' '.($exponent ? substr($digits, 0, -$exponent).'.'.substr($digits, -$exponent) : $digits));
+        return $this->e(Currency::format($minor, $currency));
     }
 }

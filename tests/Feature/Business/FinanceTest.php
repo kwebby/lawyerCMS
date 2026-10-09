@@ -124,6 +124,18 @@ final class FinanceTest extends BusinessTestCase
         $this->assertSame('draft', $this->store->get('invoices', $invoice['id'])['status']);
     }
 
+    public function test_unknown_or_withdrawn_currency_codes_are_rejected_for_new_financial_records(): void
+    {
+        $employee = $this->user('lawyer');
+        foreach (['XYZ', 'HRK', 'usd'] as $currency) {
+            $this->postJson('/api/v1/invoices', $this->invoiceInput(['currency' => $currency]))->assertUnprocessable()->assertJsonValidationErrors('currency');
+            $this->postJson('/api/v1/payroll-runs', ['period' => '2026-10', 'currency' => $currency, 'employees' => [['employee_id' => $employee->id, 'name' => 'Employee', 'earnings' => [['label' => 'Salary', 'amount_minor' => '500000']]]]])->assertUnprocessable()->assertJsonValidationErrors('currency');
+            $this->postJson('/api/v1/employee-inputs/compensation', ['employee_id' => $employee->id, 'effective_from' => '2026-10', 'currency' => $currency, 'earnings' => [['label' => 'Base', 'amount_minor' => '500000']]])->assertUnprocessable()->assertJsonValidationErrors('currency');
+        }
+        $this->postJson('/api/v1/invoices', $this->invoiceInput(['currency' => 'RSD']))->assertCreated();
+        $this->assertCount(1, $this->store->query('invoices'));
+    }
+
     public function test_letterhead_logo_requires_clearance_and_is_frozen_with_selected_template(): void
     {
         $image = imagecreatetruecolor(10, 10);

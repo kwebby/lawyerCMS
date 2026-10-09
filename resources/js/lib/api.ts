@@ -1,4 +1,5 @@
 // Author: ramanpal singh | URL: https://kwebby.com
+import iso4217 from "../../data/iso4217.json";
 let confirmationHandler: (() => Promise<void>) | null = null;
 export function setConfirmationHandler(handler: (() => Promise<void>) | null) {
     confirmationHandler = handler;
@@ -99,14 +100,16 @@ export function dateLabel(value?: string): string {
               year: "numeric",
           });
 }
+// ISO 4217 minor units shared with the server (App\Domain\Finance\Currency). Intl uses CLDR digits, which differ.
+const minorUnits: Record<string, number> = iso4217.minor_units;
+const withdrawnMinorUnits: Record<string, number> =
+    iso4217.withdrawn_minor_units;
 export function money(minor: unknown, currency = "USD"): string {
     try {
         const amount = BigInt(String(minor ?? 0));
-        const digits =
-            new Intl.NumberFormat("en", {
-                style: "currency",
-                currency,
-            }).resolvedOptions().maximumFractionDigits ?? 2;
+        const digits = minorUnits[currency] ?? withdrawnMinorUnits[currency];
+        if (digits === undefined)
+            return `${currency} ${amount.toString()} (minor units)`;
         const divisor = 10n ** BigInt(digits);
         const sign = amount < 0n ? "-" : "";
         const absolute = amount < 0n ? -amount : amount;
@@ -116,11 +119,9 @@ export function money(minor: unknown, currency = "USD"): string {
     }
 }
 export function toMinor(amount: string, currency = "USD"): string {
-    const digits =
-        new Intl.NumberFormat("en", {
-            style: "currency",
-            currency,
-        }).resolvedOptions().maximumFractionDigits ?? 2;
+    const digits = minorUnits[currency];
+    if (digits === undefined)
+        throw new Error(`${currency} is not a supported ISO 4217 currency.`);
     if (
         !new RegExp(`^\\d+(?:\\.\\d{1,${Math.max(1, digits)}})?$`).test(
             amount.trim(),

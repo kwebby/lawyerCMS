@@ -35,13 +35,14 @@ final class PaymentService
         abort_unless($gateway->configured(), 503, 'Configure the selected payment provider before creating a checkout.');
         abort_unless(str_starts_with(config('app.url'), 'https://') || app()->environment(['local', 'testing']), 422, 'A public HTTPS application URL is required for online payments.');
         $id = substr(hash('sha256', $invoiceId.':'.$data['provider'].':'.$data['idempotency_key']), 0, 32);
-        $checkout = $this->store->transaction(function () use ($invoiceId, $user, $data, $id) {
+        $checkout = $this->store->transaction(function () use ($invoiceId, $user, $data, $id, $gateway) {
             if ($old = $this->store->get('checkouts', $id)) {
                 return $old;
             }
             $invoice = $this->store->get('invoices', $invoiceId);
             $amount = (int) $invoice['total_minor'] - (int) $invoice['paid_minor'] - (int) ($invoice['credited_minor'] ?? '0');
             abort_unless($invoice['status'] !== 'draft' && $amount > 0, 409, 'Only an issued invoice with an outstanding balance can be paid.');
+            $gateway->amount((string) $amount, $invoice['currency']);
 
             return $this->store->create('checkouts', ['invoice_id' => $invoiceId, 'provider' => $data['provider'], 'amount_minor' => (string) $amount, 'currency' => $invoice['currency'], 'status' => 'creating', 'requested_by' => $user->id, 'owner_id' => $invoice['owner_id'], 'client_ids' => $invoice['client_ids'], 'team_ids' => $invoice['team_ids'] ?? []], $id);
         });
@@ -143,7 +144,7 @@ final class PaymentService
         } elseif ($provider === 'stripe' && in_array($kind, ['refund.created', 'refund.updated'], true)) {
             $refund = $event['data']['object'];
             if (($refund['status'] ?? '') === 'succeeded') {
-                $this->providerRefund('stripe', $refund['payment_intent'] ?? '', (string) $refund['amount'], strtoupper($refund['currency']), $refund['id']);
+                $this->providerRefund('stripe', $refund['payment_intent'] ?? '', $this->stripe->minor((string) $refund['amount'], strtoupper($refund['currency'])), strtoupper($refund['currency']), $refund['id']);
             }
         } elseif ($provider === 'paypal' && $kind === 'CHECKOUT.ORDER.APPROVED') {
             $checkout = $this->checkoutByProvider('paypal', $event['resource']['id']);
@@ -190,7 +191,7 @@ final class PaymentService
     {
         $checkout = $this->checkoutByProvider('stripe', $object['id']);
         abort_unless(($object['client_reference_id'] ?? '') === $checkout['id'] && ($object['metadata']['invoice_id'] ?? '') === $checkout['invoice_id'] && ! empty($object['payment_intent']), 422, 'Stripe checkout metadata does not match.');
-        $this->capture($checkout, $object['payment_intent'], (string) $object['amount_total'], strtoupper($object['currency']));
+        $this->capture($checkout, $object['payment_intent'], $this->stripe->minor((string) $object['amount_total'], strtoupper($object['currency'])), strtoupper($object['currency']));
     }
 
     private function checkoutByProvider(string $provider, string $id): array
@@ -236,6 +237,7 @@ final class PaymentService
         if (in_array($payment['method'], ['bank_transfer', 'cash'], true)) {
             return $this->invoices->refundRecord($paymentId, $amount, $data['reference'], 'manual:'.$data['idempotency_key'], $user->id);
         }
+        $this->gateway($payment['method'])->amount($amount, $payment['currency']);
         $requestId = substr(hash('sha256', $paymentId.':'.$data['idempotency_key']), 0, 32);
         $request = $this->store->transaction(function () use ($requestId, $paymentId, $amount, $user) {
             if ($old = $this->store->get('refund_requests', $requestId)) {

@@ -17,4 +17,7 @@ interface PaymentGateway
     public function verifyWebhook(string $body, array $headers): array;
 
     public function refund(string $captureId, string $amountMinor, string $currency, string $idempotencyKey): array;
+
+    /** The provider's representation of app ISO 4217 minor units; throws a validation error when it cannot be exact. */
+    public function amount(string $minor, string $currency): string;
 }
