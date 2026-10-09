@@ -131,7 +131,7 @@ final class Seo
                 if (in_array(strtolower((string) $key), ['aggregaterating', 'review', 'reviews', 'rating', 'award', 'awards', 'price', 'offers', 'script', 'html'], true)) {
                     $this->invalid('Ratings, promotional claims, prices and executable content are not accepted in advanced schema.');
                 }
-                if (is_string($key) && ! preg_match('/^[@a-zA-Z][a-zA-Z0-9_]*$/', $key)) {
+                if (is_string($key) && ! preg_match('/^[@a-zA-Z][a-zA-Z0-9_]*$/D', $key)) {
                     $this->invalid('Invalid schema property.');
                 }
                 if ($key === '@context' && $value !== 'https://schema.org') {

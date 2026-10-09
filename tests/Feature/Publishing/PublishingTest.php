@@ -6,12 +6,14 @@ namespace Tests\Feature\Publishing;
 
 use App\Auth\CrmUser;
 use App\Contracts\RecordStore;
+use App\Domain\Publishing\BlockDocument;
 use App\Domain\Publishing\IndexNow;
 use App\Support\Settings;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
 class PublishingTest extends TestCase
@@ -267,6 +269,25 @@ class PublishingTest extends TestCase
         $page = $this->patchJson('/api/v1/pages/'.$page['id'], ['expected_version' => $page['version'], 'blocks' => [['type' => 'paragraph', 'content' => 'What should I bring? Bring the original notice.']]])->assertOk()->json('data');
         $this->publish($page);
         $this->get('/p/legal-notice')->assertOk()->assertSee('What should I bring?')->assertSee('acceptedAnswer');
+    }
+
+    public function test_public_image_paths_cannot_traverse_to_application_routes_and_identifiers_reject_trailing_newlines(): void
+    {
+        foreach (['/theme-assets/x/../../api/v1/files/secret/download', '/theme-assets/x/assets/../../../api/v1/users', '/theme-assets/x/./a.png', '/theme-assets/x//a.png'] as $url) {
+            $this->postJson('/api/v1/pages', ['title' => 'Image', 'type' => 'page', 'slug' => 'image', 'blocks' => [['type' => 'image', 'props' => ['url' => $url]]]])->assertUnprocessable();
+        }
+        $this->postJson('/api/v1/pages', ['title' => 'Image', 'type' => 'page', 'slug' => 'image', 'blocks' => [['type' => 'image', 'props' => ['url' => '/theme-assets/x/assets/chart.png']]]])->assertCreated();
+        $blocks = app(BlockDocument::class);
+        $this->assertStringNotContainsString('<img', $blocks->html([['type' => 'image', 'props' => ['url' => '/theme-assets/x/../../api/v1/files/secret/download', 'caption' => 'Chart']]]));
+        $this->assertStringContainsString('<img src="/theme-assets/x/assets/chart.png"', $blocks->html([['type' => 'image', 'props' => ['url' => '/theme-assets/x/assets/chart.png']]]));
+        foreach ([['id' => "intro\n", 'type' => 'paragraph'], ['type' => 'paragraph', 'props' => ['textColor' => "red\n"]], ['type' => 'paragraph', 'content' => [['type' => 'text', 'text' => 'Hi', 'styles' => ['textColor' => "red\n"]]]]] as $block) {
+            try {
+                $blocks->validate([$block]);
+                $this->fail('A trailing newline was accepted.');
+            } catch (ValidationException $error) {
+                $this->assertArrayHasKey('blocks', $error->errors());
+            }
+        }
     }
 
     public function test_no_executable_blocks_or_private_page_attachments(): void

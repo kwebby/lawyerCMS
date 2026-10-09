@@ -24,11 +24,11 @@ final class SeoController extends Controller
             $data = $request->validate([
                 'site' => ['sometimes', 'array:name,url,locale,email,phone,address,seo,google_verification,bing_verification,indexnow_enabled,indexnow_key'],
                 'site.name' => ['sometimes', 'string', 'max:200'], 'site.url' => ['sometimes', 'url:http,https', 'max:500'],
-                'site.locale' => ['sometimes', 'regex:/^[a-z]{2,3}(?:-[A-Z]{2})?$/'], 'site.email' => ['nullable', 'email', 'max:254'],
+                'site.locale' => ['sometimes', 'regex:/^[a-z]{2,3}(?:-[A-Z]{2})?$/D'], 'site.email' => ['nullable', 'email', 'max:254'],
                 'site.phone' => ['nullable', 'string', 'max:80'], 'site.address' => ['nullable', 'string', 'max:1000'],
                 'site.indexnow_enabled' => ['sometimes', 'boolean'], 'site.indexnow_key' => ['nullable', 'string', 'regex:/^[a-zA-Z0-9-]{8,128}$/D'],
-                'site.google_verification' => ['nullable', 'string', 'max:200', 'regex:/^[a-zA-Z0-9_-]+$/'],
-                'site.bing_verification' => ['nullable', 'string', 'max:200', 'regex:/^[a-zA-Z0-9_-]+$/'], 'site.seo' => ['sometimes', 'array'],
+                'site.google_verification' => ['nullable', 'string', 'max:200', 'regex:/^[a-zA-Z0-9_-]+$/D'],
+                'site.bing_verification' => ['nullable', 'string', 'max:200', 'regex:/^[a-zA-Z0-9_-]+$/D'], 'site.seo' => ['sometimes', 'array'],
                 'types' => ['sometimes', 'array:page,article,service,profile,office,tool,about,contact'], 'types.*' => ['array'],
             ]);
             if (isset($data['site']['seo'])) {

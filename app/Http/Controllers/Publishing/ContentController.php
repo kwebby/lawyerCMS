@@ -5,6 +5,7 @@
 namespace App\Http\Controllers\Publishing;
 
 use App\Contracts\RecordStore;
+use App\Domain\Publishing\BlockDocument;
 use App\Domain\Publishing\ContentRepository;
 use App\Domain\Publishing\DocumentExport;
 use App\Domain\Publishing\Seo;
@@ -163,7 +164,7 @@ final class ContentController extends Controller
         foreach ($blocks as $block) {
             abort_if(! empty($block['props']['fileId']), 422, 'Private attachments cannot be published. Use an approved public theme asset.');
             if (($block['type'] ?? '') === 'image' && ! empty($block['props']['url'])) {
-                abort_unless(preg_match('~^/theme-assets/[a-zA-Z0-9_-]+/(?:assets/)?[a-zA-Z0-9_./-]+$~', $block['props']['url']), 422, 'Use a public theme image asset.');
+                abort_unless(is_string($block['props']['url']) && app(BlockDocument::class)->themeAssetUrl($block['props']['url']), 422, 'Use a public theme image asset.');
             }
             $this->validatePublicBlocks($block['children'] ?? []);
         }
@@ -175,11 +176,11 @@ final class ContentController extends Controller
         $rules = ['title' => [$required, 'string', 'max:200'], 'blocks' => ['sometimes', 'array', 'max:1000'], 'expected_version' => [$updating ? 'required' : 'sometimes', 'integer', 'min:1']];
         if ($this->collection($request) === 'pages') {
             $rules += [
-                'slug' => [$required, 'string', 'max:120', 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/'],
+                'slug' => [$required, 'string', 'max:120', 'regex:/^[a-z0-9]+(?:-[a-z0-9]+)*$/D'],
                 'type' => [$required, Rule::in(['page', 'article', 'service', 'profile', 'office', 'tool', 'about', 'contact'])],
                 'tool_slug' => ['nullable', Rule::in(Seo::TOOLS)],
-                'locale' => ['sometimes', 'string', 'regex:/^[a-z]{2,3}(?:-[A-Z]{2})?$/'],
-                'translation_group' => ['nullable', 'string', 'max:100', 'regex:/^[a-zA-Z0-9_-]+$/'],
+                'locale' => ['sometimes', 'string', 'regex:/^[a-z]{2,3}(?:-[A-Z]{2})?$/D'],
+                'translation_group' => ['nullable', 'string', 'max:100', 'regex:/^[a-zA-Z0-9_-]+$/D'],
                 'summary' => ['sometimes', 'nullable', 'string', 'max:1000'], 'seo' => ['sometimes', 'array'],
                 'author_name' => ['nullable', 'string', 'max:150'],
                 'jurisdiction' => ['nullable', 'string', 'max:150'], 'review_due_at' => ['nullable', 'date_format:Y-m-d'],

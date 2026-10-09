@@ -190,7 +190,7 @@ final class Themes
             for ($i = 0; $i < $zip->numFiles; $i++) {
                 $stat = $zip->statIndex($i);
                 $name = $stat['name'];
-                if (! preg_match('~^[a-zA-Z0-9][a-zA-Z0-9_./-]*$~', $name) || str_contains($name, '..') || str_contains($name, '//') || strlen($name) > 200) {
+                if (! preg_match('~^[a-zA-Z0-9][a-zA-Z0-9_./-]*$~D', $name) || str_contains($name, '..') || str_contains($name, '//') || strlen($name) > 200) {
                     $this->invalid('Unsafe archive path.');
                 }
                 $normalized = strtolower(rtrim($name, '/'));
@@ -206,13 +206,13 @@ final class Themes
                     $this->invalid('Encrypted archives are not allowed.');
                 }
                 if (str_ends_with($name, '/')) {
-                    if (! preg_match('~^(assets|templates)(/[a-zA-Z0-9_-]+)*/$~', $name)) {
+                    if (! preg_match('~^(assets|templates)(/[a-zA-Z0-9_-]+)*/$~D', $name)) {
                         $this->invalid('Unsupported theme directory.');
                     }
 
                     continue;
                 }
-                $allowed = in_array($name, ['theme.json', 'tokens.json', 'preview.webp'], true) || preg_match('~^templates/[a-z0-9_-]+\.json$~', $name) || preg_match('~^assets/(?:[a-zA-Z0-9_-]+/)*[a-zA-Z0-9_-]+\.(png|jpe?g|webp|woff2)$~i', $name);
+                $allowed = in_array($name, ['theme.json', 'tokens.json', 'preview.webp'], true) || preg_match('~^templates/[a-z0-9_-]+\.json$~D', $name) || preg_match('~^assets/(?:[a-zA-Z0-9_-]+/)*[a-zA-Z0-9_-]+\.(png|jpe?g|webp|woff2)$~iD', $name);
                 if (! $allowed) {
                     $this->invalid('Unsupported file in theme: '.$name);
                 }
@@ -252,7 +252,7 @@ final class Themes
                     $this->invalid('Invalid theme manifest '.$field.'.');
                 }
             }
-            if (! preg_match('/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/', $manifest['version'])) {
+            if (! preg_match('/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/D', $manifest['version'])) {
                 $this->invalid('Theme version must follow semantic versioning.');
             }
             if (! is_array($manifest['supported_blocks'] ?? null) || array_diff($manifest['supported_blocks'], BlockDocument::TYPES)) {
@@ -359,7 +359,7 @@ final class Themes
         }
         $tokens = array_replace(['accent' => '#285448', 'ink' => '#202622', 'paper' => '#fbfaf6', 'muted' => '#6c726c', 'font_family' => 'serif', 'radius' => 4, 'content_width' => 1120], $tokens);
         foreach (['accent', 'ink', 'paper', 'muted'] as $key) {
-            if (! is_string($tokens[$key]) || ! preg_match('/^#[0-9a-fA-F]{6}$/', $tokens[$key])) {
+            if (! is_string($tokens[$key]) || ! preg_match('/^#[0-9a-fA-F]{6}$/D', $tokens[$key])) {
                 $this->invalid('Colors must be six-digit hex values.');
             }
         }
@@ -381,7 +381,7 @@ final class Themes
             $this->invalid('Provide a page template (at most ten templates).');
         }
         foreach ($templates as $name => $template) {
-            if (! preg_match('/^[a-z][a-z0-9_-]{0,40}$/', $name) || ! is_array($template) || array_diff(array_keys($template), ['sections']) || ! is_array($template['sections'] ?? null) || count($template['sections']) > 30) {
+            if (! preg_match('/^[a-z][a-z0-9_-]{0,40}$/D', $name) || ! is_array($template) || array_diff(array_keys($template), ['sections']) || ! is_array($template['sections'] ?? null) || count($template['sections']) > 30) {
                 $this->invalid('Invalid template.');
             }
             foreach ($template['sections'] as $section) {
@@ -442,7 +442,7 @@ final class Themes
 
     private function link(mixed $url): bool
     {
-        return is_string($url) && strlen($url) < 1000 && preg_match('~^/(?!/)[a-zA-Z0-9/_?=&#.%-]*$~', $url) && ! str_contains($url, '..');
+        return is_string($url) && strlen($url) < 1000 && preg_match('~^/(?!/)[a-zA-Z0-9/_?=&#.%-]*$~D', $url) && ! str_contains($url, '..');
     }
 
     private function decode(string $json): array

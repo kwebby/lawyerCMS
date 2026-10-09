@@ -125,7 +125,7 @@ class ThemeSecurityTest extends TestCase
 
     public function test_zip_traversal_script_nested_archive_and_case_duplicates_are_rejected(): void
     {
-        foreach ([['../escape.php' => '<?php bad();'], ['assets/main.js' => 'alert(1)'], ['assets/archive.zip' => 'PK'], ['assets/a.png' => 'x', 'assets/A.png' => 'y']] as $files) {
+        foreach ([['../escape.php' => '<?php bad();'], ['assets/main.js' => 'alert(1)'], ['assets/archive.zip' => 'PK'], ['assets/a.png' => 'x', 'assets/A.png' => 'y'], ["assets/a.png\n" => 'x']] as $files) {
             try {
                 app(Themes::class)->import($this->zip($files), auth()->id());
                 $this->fail('Unsafe archive was accepted.');
@@ -179,5 +179,11 @@ class ThemeSecurityTest extends TestCase
         }
         $this->postJson('/api/v1/themes/designer', ['name' => 'Unsafe', 'tokens' => ['accent' => 'red; background:url(https://example.com)'], 'templates' => ['page' => ['sections' => [['type' => 'content']]]]])->assertUnprocessable();
         $this->postJson('/api/v1/themes/designer', ['name' => 'Unsafe', 'tokens' => [], 'templates' => ['page' => ['sections' => [['type' => 'script'], ['type' => 'content']]]]])->assertUnprocessable();
+        try {
+            app(Themes::class)->design(['name' => 'Unsafe', 'tokens' => ['accent' => "#245544\n"], 'templates' => ['page' => ['sections' => [['type' => 'content']]]]], auth()->id());
+            $this->fail('A color with a trailing newline was accepted.');
+        } catch (ValidationException $error) {
+            $this->assertStringContainsString('six-digit', $error->getMessage());
+        }
     }
 }

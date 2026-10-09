@@ -47,7 +47,7 @@ final class ThemeController extends Controller
     public function design(Request $request)
     {
         $this->access->authorize($request->user(), 'themes.write');
-        $data = $request->validate(['name' => ['required', 'string', 'max:120'], 'theme_version' => ['sometimes', 'string', 'regex:/^\d+\.\d+\.\d+$/'], 'tokens' => ['required', 'array'], 'templates' => ['required', 'array'], 'navigation' => ['sometimes', 'array'], 'author' => ['nullable', 'string', 'max:120'], 'license' => ['nullable', 'string', 'max:120']]);
+        $data = $request->validate(['name' => ['required', 'string', 'max:120'], 'theme_version' => ['sometimes', 'string', 'regex:/^\d+\.\d+\.\d+$/D'], 'tokens' => ['required', 'array'], 'templates' => ['required', 'array'], 'navigation' => ['sometimes', 'array'], 'author' => ['nullable', 'string', 'max:120'], 'license' => ['nullable', 'string', 'max:120']]);
 
         return response()->json(['data' => $this->themes->design($data, $request->user()->id)], 201);
     }

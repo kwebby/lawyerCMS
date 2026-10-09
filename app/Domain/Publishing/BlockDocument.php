@@ -64,7 +64,7 @@ final class BlockDocument
                 }
             }
             foreach (['textColor', 'backgroundColor'] as $key) {
-                if (isset($props[$key]) && ! preg_match('/^(default|gray|brown|red|orange|yellow|green|blue|purple|pink|#[0-9a-f]{6})$/i', (string) $props[$key])) {
+                if (isset($props[$key]) && ! preg_match('/^(default|gray|brown|red|orange|yellow|green|blue|purple|pink|#[0-9a-f]{6})$/iD', (string) $props[$key])) {
                     $this->invalid('Unsupported text color.');
                 }
             }
@@ -85,13 +85,13 @@ final class BlockDocument
             if (isset($props['url']) && $props['url'] !== '' && ! $this->safeUrl((string) $props['url'])) {
                 $this->invalid('Unsafe block URL.');
             }
-            if (isset($props['fileId']) && ! preg_match('/^[a-zA-Z0-9_-]{1,100}$/', $props['fileId'])) {
+            if (isset($props['fileId']) && ! preg_match('/^[a-zA-Z0-9_-]{1,100}$/D', $props['fileId'])) {
                 $this->invalid('Invalid file identifier.');
             }
             if (isset($props['previewWidth']) && (! is_numeric($props['previewWidth']) || $props['previewWidth'] < 1 || $props['previewWidth'] > 3000)) {
                 $this->invalid('Invalid image width.');
             }
-            if ($type === 'mergeField' && ! preg_match('/^[a-z][a-z0-9_.]{0,79}$/i', (string) ($props['field'] ?? ''))) {
+            if ($type === 'mergeField' && ! preg_match('/^[a-z][a-z0-9_.]{0,79}$/iD', (string) ($props['field'] ?? ''))) {
                 $this->invalid('Invalid merge field.');
             }
             if ($type === 'table') {
@@ -110,7 +110,7 @@ final class BlockDocument
             }
             $item = ['type' => $type, 'props' => $props, 'children' => $this->validateBlocks($children, $depth + 1)];
             if (isset($block['id'])) {
-                if (! is_string($block['id']) || ! preg_match('/^[a-zA-Z0-9_-]{1,100}$/', $block['id'])) {
+                if (! is_string($block['id']) || ! preg_match('/^[a-zA-Z0-9_-]{1,100}$/D', $block['id'])) {
                     $this->invalid('Invalid block identifier.');
                 }
                 $item['id'] = $block['id'];
@@ -151,7 +151,7 @@ final class BlockDocument
                             $this->invalid('Text style must be boolean.');
                         }
                     } elseif (in_array($key, ['textColor', 'backgroundColor'], true)) {
-                        if (! is_string($value) || ! preg_match('/^(default|gray|brown|red|orange|yellow|green|blue|purple|pink|#[0-9a-f]{6})$/i', $value)) {
+                        if (! is_string($value) || ! preg_match('/^(default|gray|brown|red|orange|yellow|green|blue|purple|pink|#[0-9a-f]{6})$/iD', $value)) {
                             $this->invalid('Invalid text color.');
                         }
                     } else {
@@ -199,7 +199,7 @@ final class BlockDocument
                         if ($key === 'textAlignment' && ! in_array($value, ['left', 'center', 'right', 'justify'], true)) {
                             $this->invalid('Invalid alignment.');
                         }
-                        if (in_array($key, ['textColor', 'backgroundColor'], true) && (! is_string($value) || ! preg_match('/^(default|gray|brown|red|orange|yellow|green|blue|purple|pink|#[0-9a-f]{6})$/i', $value))) {
+                        if (in_array($key, ['textColor', 'backgroundColor'], true) && (! is_string($value) || ! preg_match('/^(default|gray|brown|red|orange|yellow|green|blue|purple|pink|#[0-9a-f]{6})$/iD', $value))) {
                             $this->invalid('Invalid cell color.');
                         }
                     }
@@ -249,6 +249,12 @@ final class BlockDocument
         $scheme = strtolower((string) parse_url($url, PHP_URL_SCHEME));
 
         return in_array($scheme, ['https', 'http', 'mailto', 'tel'], true) && ! str_contains($url, '"') && ! str_contains($url, "'");
+    }
+
+    /** A same-site theme asset path; dot segments would let the browser resolve it to another application route. */
+    public function themeAssetUrl(string $url): bool
+    {
+        return preg_match('~^/theme-assets/[a-zA-Z0-9_-]+/[a-zA-Z0-9_./-]+$~D', $url) === 1 && array_intersect(array_slice(explode('/', rawurldecode($url)), 1), ['', '.', '..']) === [];
     }
 
     public function html(array $blocks, array $fields = [], bool $forExport = false, array $images = []): string
@@ -315,7 +321,7 @@ final class BlockDocument
                     // PDF engines must never resolve external URLs or authenticated application routes.
                     if ($forExport && isset($images[$props['fileId'] ?? ''])) {
                         $html .= '<p><img src="'.e($images[$props['fileId']]).'" width="480" alt="'.e($props['caption'] ?? '').'"></p>';
-                    } elseif ($url && ! $forExport && preg_match('~^/theme-assets/~', $url)) {
+                    } elseif ($url && ! $forExport && $this->themeAssetUrl($url)) {
                         $html .= '<figure><img src="'.e($url).'" alt="'.e($props['caption'] ?? $props['name'] ?? '').'" loading="lazy" width="'.(int) ($props['previewWidth'] ?? 720).'" height="480"><figcaption>'.e($props['caption'] ?? '').'</figcaption></figure>';
                     } else {
                         $html .= '<p>[Image: '.e($props['caption'] ?? $props['name'] ?? 'Attachment').']</p>';
