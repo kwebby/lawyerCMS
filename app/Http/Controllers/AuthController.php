@@ -5,6 +5,7 @@
 namespace App\Http\Controllers;
 
 use App\Auth\CrmUser;
+use App\Auth\MfaLockout;
 use App\Contracts\RecordStore;
 use App\Support\Access;
 use App\Support\Audit;
@@ -203,7 +204,7 @@ final class AuthController extends Controller
         return response()->json(['data' => ['confirmed' => true]]);
     }
 
-    public function mfa(Request $request): mixed
+    public function mfa(Request $request, MfaLockout $lockout): mixed
     {
         $user = $this->store->get('users', $request->user()->id);
         $enrolling = empty($user['mfa_secret']);
@@ -222,19 +223,21 @@ final class AuthController extends Controller
         $data = $request->validate(['code' => 'required|digits:6']);
         $key = $enrolling ? 'mfa_pending' : 'mfa_secret';
         abort_unless(isset($user[$key]), 422);
-        $totp = TOTP::createFromSecret(Crypt::decryptString($user[$key]));
-        $step = (int) floor(time() / 30);
-        $matchedStep = null;
-        foreach ([$step - 1, $step, $step + 1] as $candidate) {
-            if (hash_equals($totp->at($candidate * 30), $data['code'])) {
-                $matchedStep = $candidate;
-                break;
-            }
-        }
-        abort_unless($matchedStep !== null, 422, 'Invalid authenticator code.');
-        $this->store->transaction(function () use ($user, $enrolling, $matchedStep, $key) {
-            $current = $this->store->get('users', $user['id']);
+        // Check, count and record the attempt on the locked account record so parallel guesses cannot outrun the limit.
+        $lockout->attempt($user['id'], function (array $current) use ($user, $enrolling, $key, $data) {
             abort_unless(isset($current[$key]) && hash_equals($current[$key], $user[$key]), 422, 'Authenticator enrollment changed. Reload and retry.');
+            $totp = TOTP::createFromSecret(Crypt::decryptString($current[$key]));
+            $step = (int) floor(time() / 30);
+            $matchedStep = null;
+            foreach ([$step - 1, $step, $step + 1] as $candidate) {
+                if (hash_equals($totp->at($candidate * 30), $data['code'])) {
+                    $matchedStep = $candidate;
+                    break;
+                }
+            }
+            if ($matchedStep === null) {
+                throw ValidationException::withMessages(['code' => 'Invalid authenticator code.']);
+            }
             abort_if(($current['mfa_last_step'] ?? 0) >= $matchedStep, 422, 'This code has already been used.');
             if ($enrolling) {
                 $current['mfa_secret'] = $current['mfa_pending'];
@@ -288,7 +291,7 @@ final class AuthController extends Controller
                 // Accepting proves control of the mailbox: replace whatever an unverified self-registration set up.
                 abort_unless($this->claimable($existing), 422, 'An account with this email already exists. Sign in instead.');
                 $user = array_merge($existing, ['name' => $data['name'], 'password' => Hash::make($data['password']), 'roles' => $invite['roles'], 'status' => 'active', 'access_expires_at' => $invite['access_expires_at'] ?? null, 'email_verified_at' => now()->toISOString(), 'session_epoch' => ($existing['session_epoch'] ?? 0) + 1]);
-                unset($user['mfa_secret'], $user['mfa_pending'], $user['mfa_last_step'], $user['recovery_codes']);
+                unset($user['mfa_secret'], $user['mfa_pending'], $user['mfa_last_step'], $user['recovery_codes'], $user['mfa_failures'], $user['mfa_lockouts'], $user['mfa_locked_until']);
                 $user = $this->store->put('users', $existing['id'], $user, $existing['version']);
                 $this->audit->log($user['id'], 'identity.invitation_claimed_account', 'users', $user['id']);
             } else {
