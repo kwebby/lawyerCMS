@@ -12,8 +12,8 @@ use App\Support\AiGateway;
 use App\Support\Outbox;
 use App\Support\PrivateFiles;
 use App\Support\Settings;
+use App\Support\Turnstile;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 final class AnalyzerController extends Controller
@@ -53,8 +53,7 @@ final class AnalyzerController extends Controller
         abort_unless(isset(self::TOOLS[$tool]) && $this->enabled(), 503, 'Public analysis is awaiting administrator configuration and jurisdiction review.');
         $data = $request->validate(['email' => 'required|email|max:254', 'name' => 'required|string|max:120', 'jurisdiction' => 'required|string|max:120', 'processing_consent' => 'accepted', 'processing_policy' => 'required|string|size:64|regex:/^[a-f0-9]+$/D', 'marketing_consent' => 'boolean', 'website' => 'nullable|size:0', 'cf-turnstile-response' => 'required|string|max:2048']);
         $this->ai->assertPublicPolicy($data);
-        $bot = Http::asForm()->timeout(10)->post('https://challenges.cloudflare.com/turnstile/v0/siteverify', ['secret' => config('services.turnstile.secret'), 'response' => $data['cf-turnstile-response'], 'remoteip' => $request->ip()])->throw()->json();
-        abort_unless(($bot['success'] ?? false) && ($bot['hostname'] ?? '') === parse_url(config('app.url'), PHP_URL_HOST), 422, 'Verification could not be completed.');
+        abort_unless(app(Turnstile::class)->verify($data['cf-turnstile-response'], $request->ip()), 422, 'Verification could not be completed.');
         $token = Str::random(64);
         $this->store->transaction(function () use ($data, $tool, $token, $request) {
             $this->ai->assertPublicPolicy($data);

@@ -11,6 +11,7 @@ use App\Domain\Publishing\Seo;
 use App\Domain\Publishing\Themes;
 use App\Domain\Publishing\Website;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class WebsiteRenderingTest extends TestCase
@@ -140,6 +141,30 @@ class WebsiteRenderingTest extends TestCase
         $this->assertNotSame($token, $newToken);
         $this->post('/contact-request', array_replace($data, ['enquiry_token' => $newToken, 'name' => 'Second enquiry']))->assertRedirect('/contact-request');
         $this->assertCount(2, $this->store->query('leads'));
+    }
+
+    public function test_enquiry_form_requires_a_verified_turnstile_token_when_bot_protection_is_configured(): void
+    {
+        $this->publish($this->document());
+        auth()->logout();
+        $this->get('/contact-request')->assertOk()->assertDontSee('challenges.cloudflare.com');
+        config(['services.turnstile.site_key' => 'enquiry-site-key', 'services.turnstile.secret' => 'enquiry-secret']);
+        Http::fake(['https://challenges.cloudflare.com/turnstile/v0/siteverify' => Http::sequence()->push(['success' => false])->push(['success' => true, 'hostname' => 'attacker.example'])->push(['success' => true, 'hostname' => 'localhost'])]);
+        $response = $this->get('/contact-request')->assertOk()->assertSee('data-sitekey="enquiry-site-key"', false)->assertSee('src="https://challenges.cloudflare.com/turnstile/v0/api.js"', false);
+        $this->assertStringContainsString(" https://challenges.cloudflare.com; style-src 'nonce-", $response->headers->get('Content-Security-Policy'));
+        $this->assertStringContainsString('frame-src https://challenges.cloudflare.com;', $response->headers->get('Content-Security-Policy'));
+        $data = ['name' => 'Sam Visitor', 'email' => 'sam@example.test', 'jurisdiction' => 'England', 'issue_category' => 'general', 'contact_consent' => '1', 'enquiry_token' => session('website.enquiry_token')];
+        $this->post('/contact-request', $data)->assertSessionHasErrors('cf-turnstile-response');
+        Http::assertNothingSent();
+        foreach (['rejected-token', 'other-host-token'] as $token) {
+            $this->post('/contact-request', $data + ['cf-turnstile-response' => $token])->assertSessionHasErrors('cf-turnstile-response');
+        }
+        $this->assertCount(0, $this->store->query('leads'));
+        $this->post('/contact-request', $data + ['cf-turnstile-response' => 'valid-token'])->assertRedirect('/contact-request')->assertSessionHasNoErrors();
+        $this->post('/contact-request', $data + ['cf-turnstile-response' => 'valid-token'])->assertRedirect('/contact-request')->assertSessionHasNoErrors();
+        $this->assertCount(1, $this->store->query('leads'));
+        Http::assertSentCount(3);
+        Http::assertSent(fn ($request) => $request['secret'] === 'enquiry-secret' && $request['response'] === 'valid-token');
     }
 
     public function test_published_website_preserves_imported_inner_page_templates_without_replacing_homepage_sections(): void
