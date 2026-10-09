@@ -154,9 +154,9 @@ Custom block examples:
 ]
 ```
 
-A document image may reference `props.fileId` for a clean, authorized local upload. PDF/DOCX export rechecks access and scan status before embedding its bytes. Exporters never fetch remote URLs. Public pages reject private `fileId` references; use validated `/theme-assets/...` images. Private image rendering and external image export fall back to a caption until an approved local attachment is available.
+A document image may reference `props.fileId` for a clean, authorized local upload. PDF/DOCX export rechecks access and scan status before embedding its bytes. Exporters never fetch remote URLs. Public pages reject private `fileId` references; use validated `/theme-assets/...` images. Image paths with empty, `.` or `..` segments (including percent-encoded ones) are rejected and never rendered, because a browser would resolve them to another application route. Private image rendering and external image export fall back to a caption until an approved local attachment is available.
 
-Application-owned review comments reference a block and document version. Review workflow is `draft → in_review → approved → published` for pages and `draft → in_review → approved` for written documents. Legal articles/services/tools require an author, reviewer and jurisdiction before publishing; articles additionally require sources. Source documents and unapproved revisions are not made public by a page or theme activation.
+Application-owned review comments reference a block and document version. Review workflow is `draft → in_review → approved → published` for pages and `draft → in_review → approved` for written documents. Legal articles/services/tools require an author, reviewer and jurisdiction before publishing; articles additionally require sources. The reviewer is the account that approved the page (recorded at approval, not typed in), and it must differ from the page's author and anyone who edited it since its last approval unless an owner allows self-approval. Source documents and unapproved revisions are not made public by a page or theme activation.
 
 ## Search, social and schema ownership
 
