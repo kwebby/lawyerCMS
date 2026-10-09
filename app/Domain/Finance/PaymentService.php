@@ -73,7 +73,7 @@ final class PaymentService
     {
         $checkout = $this->store->get('checkouts', $id);
         abort_unless($checkout !== null, 404);
-        if (in_array($checkout['status'], ['paid', 'review_required', 'expired'], true)) {
+        if (in_array($checkout['status'], ['paid', 'review_required', 'expired', 'not_captured'], true)) {
             return $checkout;
         }
         abort_unless(isset($checkout['provider_id']), 409, 'Checkout creation has not completed. Retry checkout creation with the original key.');
@@ -84,6 +84,13 @@ final class PaymentService
             if (($remote['status'] ?? '') === 'APPROVED') {
                 foreach ($remote['purchase_units'] ?? [] as $unit) {
                     abort_unless(($unit['payee']['merchant_id'] ?? '') === config('services.paypal.merchant_id'), 422, 'PayPal merchant does not match.');
+                }
+                $invoice = $this->store->get('invoices', $checkout['invoice_id']);
+                if ((int) $checkout['amount_minor'] > (int) $invoice['total_minor'] - (int) $invoice['paid_minor'] - (int) ($invoice['credited_minor'] ?? '0')) {
+                    // The balance was paid or credited after checkout; capturing would charge the client again.
+                    $this->close($id, 'not_captured', ['status_reason' => 'The invoice no longer has this amount outstanding, so the approved PayPal order was not captured.']);
+
+                    return $this->store->get('checkouts', $id);
                 }
                 $this->paypal->capture($checkout['provider_id'], 'capture-'.$id);
                 // Capture responses may be minimal; retrieve authoritative order details for merchant and capture verification.
@@ -98,23 +105,41 @@ final class PaymentService
                 }
             }
         }
-        if ($checkout['provider'] === 'stripe' && ($remote['status'] ?? '') === 'expired') {
-            $this->store->transaction(function () use ($id) {
-                $current = $this->store->get('checkouts', $id);
-                if ($current['status'] === 'pending') {
-                    $this->store->put('checkouts', $id, array_replace($current, ['status' => 'expired']), $current['version']);
-                }
-            });
+        if (($checkout['provider'] === 'stripe' && ($remote['status'] ?? '') === 'expired') || $this->paypalAbandoned($checkout)) {
+            $this->close($id, 'expired');
         }
 
         return $this->store->get('checkouts', $id);
+    }
+
+    /**
+     * Stripe reports session expiry; PayPal does not, and an order can be approved and captured only for a limited time
+     * after it is created. 72 hours is a conservative bound past that window: older pending PayPal checkouts cannot
+     * complete, so they are expired instead of being rechecked every hour. A capture webhook that still arrives is recorded.
+     */
+    private function paypalAbandoned(array $checkout): bool
+    {
+        return $checkout['provider'] === 'paypal' && isset($checkout['created_at']) && now()->subHours(72)->greaterThan($checkout['created_at']);
+    }
+
+    private function close(string $id, string $status, array $details = []): void
+    {
+        $this->store->transaction(function () use ($id, $status, $details) {
+            $current = $this->store->get('checkouts', $id);
+            if ($current['status'] === 'pending') {
+                $this->store->put('checkouts', $id, array_replace($current, $details, ['status' => $status]), $current['version']);
+                $this->audit->log(null, 'payment.checkout_'.$status, 'checkouts', $id);
+            }
+        });
     }
 
     public function queuePendingChecks(): int
     {
         $count = 0;
         foreach ($this->store->query('checkouts', ['status' => 'pending'], 100) as $checkout) {
-            if (isset($checkout['provider_id']) && $this->gateway($checkout['provider'])->configured()) {
+            if ($this->paypalAbandoned($checkout)) {
+                $this->close($checkout['id'], 'expired');
+            } elseif (isset($checkout['provider_id']) && $this->gateway($checkout['provider'])->configured()) {
                 $this->outbox->enqueue('payment.reconcile', ['checkout_id' => $checkout['id']], $checkout['id'].':'.now()->format('Y-m-d-H'));
                 $count++;
             }

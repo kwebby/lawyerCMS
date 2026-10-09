@@ -194,4 +194,45 @@ final class PaymentGatewayTest extends BusinessTestCase
         $payments->webhook('stripe', $body, $this->signed($body));
         $this->assertSame('12340', $this->store->get('invoices', $invoice['id'])['paid_minor']);
     }
+
+    public function test_abandoned_paypal_checkouts_expire_instead_of_being_rechecked_forever(): void
+    {
+        $this->setupPaypal();
+        $invoice = app(InvoiceService::class)->issue($this->owner, app(InvoiceService::class)->save($this->owner, $this->invoiceInput())['id']);
+        $this->travelTo(now()->subHours(73));
+        $stale = $this->store->create('checkouts', ['provider' => 'paypal', 'provider_id' => 'ORDEROLD', 'invoice_id' => $invoice['id'], 'amount_minor' => '22000', 'currency' => 'USD', 'status' => 'pending']);
+        $this->travelBack();
+        $fresh = $this->store->create('checkouts', ['provider' => 'paypal', 'provider_id' => 'ORDERNEW', 'invoice_id' => $invoice['id'], 'amount_minor' => '22000', 'currency' => 'USD', 'status' => 'pending']);
+        $payments = app(PaymentService::class);
+        $this->assertSame(1, $payments->queuePendingChecks());
+        $this->assertSame('expired', $this->store->get('checkouts', $stale['id'])['status']);
+        $this->assertSame('pending', $this->store->get('checkouts', $fresh['id'])['status']);
+        $this->assertSame([$fresh['id']], array_column(array_column($this->store->query('jobs', ['type' => 'payment.reconcile']), 'payload'), 'checkout_id'));
+        $this->travel(73)->hours();
+        $this->assertSame(0, $payments->queuePendingChecks());
+        $this->assertSame('expired', $this->store->get('checkouts', $fresh['id'])['status']);
+    }
+
+    public function test_approved_paypal_order_is_not_captured_when_the_invoice_was_paid_meanwhile(): void
+    {
+        $this->setupPaypal();
+        $service = app(InvoiceService::class);
+        $invoice = $service->issue($this->owner, $service->save($this->owner, $this->invoiceInput())['id']);
+        $checkout = $this->store->create('checkouts', ['provider' => 'paypal', 'provider_id' => 'ORDERPAID', 'invoice_id' => $invoice['id'], 'amount_minor' => '22000', 'currency' => 'USD', 'status' => 'pending']);
+        $service->payment($this->owner, $invoice['id'], ['amount_minor' => '22000', 'method' => 'bank_transfer', 'reference' => 'Bank transfer', 'idempotency_key' => 'manual-before-capture']);
+        Http::fake([
+            'api-m.sandbox.paypal.com/v1/oauth2/token' => Http::response(['access_token' => 'access']),
+            'api-m.sandbox.paypal.com/v1/notifications/verify-webhook-signature' => Http::response(['verification_status' => 'SUCCESS']),
+            'api-m.sandbox.paypal.com/v2/checkout/orders/ORDERPAID' => Http::response(['id' => 'ORDERPAID', 'status' => 'APPROVED', 'purchase_units' => [['payee' => ['merchant_id' => 'merchant-id']]]]),
+            'api-m.sandbox.paypal.com/v2/checkout/orders/ORDERPAID/capture' => Http::response(['id' => 'ORDERPAID', 'status' => 'COMPLETED']),
+        ]);
+        $event = json_encode(['id' => 'WH-APPROVED', 'event_type' => 'CHECKOUT.ORDER.APPROVED', 'resource' => ['id' => 'ORDERPAID']]);
+        app(PaymentService::class)->webhook('paypal', $event, ['paypal-auth-algo' => 'SHA256withRSA', 'paypal-cert-url' => 'https://api.paypal.com/cert', 'paypal-transmission-id' => 'transmission', 'paypal-transmission-sig' => 'signature', 'paypal-transmission-time' => now()->toISOString()]);
+        Http::assertNotSent(fn ($r) => str_ends_with($r->url(), '/capture'));
+        $this->assertSame('not_captured', $this->store->get('checkouts', $checkout['id'])['status']);
+        $this->assertSame('not_captured', app(PaymentService::class)->reconcilePendingCheckout($checkout['id'])['status']);
+        $this->assertSame('22000', $this->store->get('invoices', $invoice['id'])['paid_minor']);
+        $this->assertCount(1, $this->store->query('payments'));
+        $this->assertCount(0, $this->store->query('unapplied_payments'));
+    }
 }
