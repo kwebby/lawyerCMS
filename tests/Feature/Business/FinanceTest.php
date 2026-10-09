@@ -48,6 +48,22 @@ final class FinanceTest extends BusinessTestCase
         $this->assertEquals($invoice['snapshot'], $updated['snapshot']);
     }
 
+    public function test_reused_payment_key_with_other_details_is_refused_and_a_second_equal_payment_is_recorded(): void
+    {
+        $service = app(InvoiceService::class);
+        $invoice = $service->issue($this->owner, $service->save($this->owner, $this->invoiceInput())['id']);
+        $input = ['amount_minor' => '5000', 'method' => 'bank_transfer', 'reference' => 'BANK-001', 'idempotency_key' => 'payment-key-001'];
+        $first = $this->postJson('/api/v1/invoices/'.$invoice['id'].'/payments', $input)->assertCreated()->json('data');
+        $this->assertSame($first['id'], $this->postJson('/api/v1/invoices/'.$invoice['id'].'/payments', $input)->assertCreated()->json('data.id'));
+        $this->postJson('/api/v1/invoices/'.$invoice['id'].'/payments', array_replace($input, ['reference' => 'BANK-002']))->assertConflict();
+        $this->postJson('/api/v1/invoices/'.$invoice['id'].'/payments', array_replace($input, ['method' => 'cash']))->assertConflict();
+        $this->assertSame('5000', $this->store->get('invoices', $invoice['id'])['paid_minor']);
+        $second = $this->postJson('/api/v1/invoices/'.$invoice['id'].'/payments', array_replace($input, ['reference' => 'BANK-002', 'idempotency_key' => 'payment-key-002']))->assertCreated()->json('data');
+        $this->assertNotSame($first['id'], $second['id']);
+        $this->assertSame('10000', $this->store->get('invoices', $invoice['id'])['paid_minor']);
+        $this->assertCount(2, $this->store->query('payments', ['invoice_id' => $invoice['id']]));
+    }
+
     public function test_private_invoice_pdf_is_cached_as_encrypted_file_and_client_access_is_explicit(): void
     {
         $client = $this->user('client');

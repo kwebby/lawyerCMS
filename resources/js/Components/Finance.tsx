@@ -536,7 +536,7 @@ function InvoiceDetails({
     const [amount, setAmount] = useState("");
     const [method, setMethod] = useState("bank_transfer");
     const [reference, setReference] = useState("");
-    const [key] = useState(crypto.randomUUID());
+    const [key, setKey] = useState(() => crypto.randomUUID());
     async function action(path: string, body?: any) {
         setBusy(true);
         setError("");
@@ -546,12 +546,14 @@ function InvoiceDetails({
                 window.location.assign(
                     result.data.url || result.data.checkout_url,
                 );
-                return;
+                return false;
             }
             await reload();
             setPayment(false);
+            return true;
         } catch (e) {
             setError((e as Error).message);
+            return false;
         } finally {
             setBusy(false);
         }
@@ -668,7 +670,13 @@ function InvoiceDetails({
                                             reference,
                                             idempotency_key: key,
                                         },
-                                    );
+                                    ).then((recorded) => {
+                                        // A failed attempt keeps its key so a retry stays idempotent; the next payment gets a new one.
+                                        if (!recorded) return;
+                                        setKey(crypto.randomUUID());
+                                        setAmount("");
+                                        setReference("");
+                                    });
                                 } catch (e) {
                                     setError((e as Error).message);
                                 }

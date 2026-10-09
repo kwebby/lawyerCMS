@@ -116,13 +116,17 @@ final class InvoiceService
     {
         $amount = Money::minor($amount, allowZero: false);
         $paymentId = hash('sha256', $method.':'.$idempotencyKey);
+        // Manual receipts share one key space so a key replayed with the other method is detected as well.
+        $keyIds = in_array($method, ['bank_transfer', 'cash'], true) ? [hash('sha256', 'bank_transfer:'.$idempotencyKey), hash('sha256', 'cash:'.$idempotencyKey)] : [$paymentId];
 
-        return $this->store->transaction(function () use ($invoiceId, $amount, $method, $reference, $paymentId, $actorId, $currency) {
+        return $this->store->transaction(function () use ($invoiceId, $amount, $method, $reference, $paymentId, $keyIds, $actorId, $currency) {
             $invoice = $this->store->get('invoices', $invoiceId);
-            if ($previous = $this->store->get('payments', $paymentId)) {
-                abort_unless($previous['invoice_id'] === $invoiceId && $previous['amount_minor'] === (string) $amount, 409, 'Payment idempotency key was already used for different payment details.');
+            foreach ($keyIds as $keyId) {
+                if ($previous = $this->store->get('payments', $keyId)) {
+                    abort_unless($previous['invoice_id'] === $invoiceId && $previous['amount_minor'] === (string) $amount && $previous['method'] === $method && $previous['reference'] === $reference, 409, 'This payment request key was already used for a payment with different details (amount, method or reference). Reload the invoice before recording another payment.');
 
-                return $previous;
+                    return $previous;
+                }
             }
             abort_unless($invoice && $invoice['status'] !== 'draft', 409, 'Only issued invoices can receive payment.');
             abort_if($currency && $currency !== $invoice['currency'], 422, 'Payment currency does not match the invoice.');
