@@ -40,10 +40,16 @@ final class SettingsController extends Controller
             'business' => ['legal_name' => 'required|string|max:160', 'trading_name' => 'nullable|string|max:160', 'address' => 'nullable|string|max:1000', 'email' => 'nullable|email', 'phone' => 'nullable|string|max:60', 'website' => 'nullable|url:https', 'tax_id' => 'nullable|string|max:120', 'registration_id' => 'nullable|string|max:120', 'currency' => 'required|string|size:3', 'invoice_prefix' => 'nullable|regex:/^[A-Z0-9-]{1,12}$/', 'payment_instructions' => 'nullable|string|max:3000', 'terms' => 'nullable|string|max:3000', 'invoice_template' => 'nullable|array', 'logo_file_id' => 'nullable|string|max:100', 'signature' => 'nullable|string|max:300', 'offices' => 'nullable|array|max:50'],
             'mail' => ['host' => 'required|string|max:254', 'port' => 'required|integer|in:465,587', 'encryption' => 'required|in:tls,ssl', 'username' => 'required|string|max:254', 'password' => 'nullable|string|max:1000', 'from_address' => 'required|email', 'from_name' => 'required|string|max:160', 'reply_to' => 'nullable|email'],
             'ai' => ['enabled' => 'required|boolean', 'provider' => 'required|in:openai,anthropic,gemini,ollama,openai-compatible', 'model' => 'required|string|max:100', 'api_key' => 'nullable|string|max:1000', 'endpoint' => 'nullable|url', 'daily_limit' => 'integer|min:1|max:1000', 'public_tools_approved' => 'boolean', 'jurisdiction' => 'nullable|string|max:100'],
-            'security' => ['retention_days' => 'integer|min:30|max:36500', 'notification_digest' => 'in:off,daily,weekly'],
+            'security' => ['retention_days' => 'integer|min:30|max:36500', 'notification_digest' => 'in:off,daily,weekly', 'allow_self_approval' => 'sometimes|boolean'],
             default => throw new \InvalidArgumentException('Unknown settings section.'),
         };
         $data = validator($input['data'], $rules)->validate();
+        if ($input['section'] === 'security' && array_key_exists('allow_self_approval', $data)) {
+            $data['allow_self_approval'] = (bool) $data['allow_self_approval'];
+            if ($data['allow_self_approval'] !== (($this->settings->get('security')['allow_self_approval'] ?? false) === true)) {
+                abort_unless(in_array('owner', $request->user()->roles ?? [], true), 403, 'Only an owner can change whether people may approve their own work.');
+            }
+        }
         if ($input['section'] === 'mail') {
             $policy->smtp($data['host'], $data['port']);
         }

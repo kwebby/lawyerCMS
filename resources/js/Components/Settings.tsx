@@ -531,6 +531,28 @@ export function Settings({ initial, user }: { initial: any; user: User }) {
                             </label>
                         )}
                         {section === "security" && (
+                            <label className="checkbox-label setting-checkbox">
+                                <input
+                                    type="checkbox"
+                                    checked={
+                                        values.allow_self_approval === true
+                                    }
+                                    disabled={!user.roles.includes("owner")}
+                                    onChange={(e) =>
+                                        setValues({
+                                            ...values,
+                                            allow_self_approval:
+                                                e.target.checked,
+                                        })
+                                    }
+                                />
+                                Allow people to approve their own work (pay,
+                                credits, refunds and publishing). Leave off
+                                unless your practice has a single approver.
+                                Owners only; every use is audited.
+                            </label>
+                        )}
+                        {section === "security" && (
                             <p className="subtle setting-checkbox">
                                 Staff MFA, private file encryption and malware
                                 scanning are enforced by your installation
