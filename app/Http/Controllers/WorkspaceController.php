@@ -21,7 +21,12 @@ final class WorkspaceController extends Controller
             'payroll_runs' => 'payroll','ai_runs' => 'ai_runs',default => $collection
         };
         // Notifications are a per-user feed: read the newest of this user's own rather than scanning everyone's.
-        $records = $collection === 'notifications' ? $this->store->query('notifications', ['user_id' => $request->user()->id], 500) : $this->store->each($collection);
+        // Like the AI API, the workspace lists staff runs only; public analyzer runs have their own grant-bound pages.
+        $records = match ($collection) {
+            'notifications' => $this->store->query('notifications', ['user_id' => $request->user()->id], 500),
+            'ai_runs' => $this->store->each('ai_runs', ['context' => 'staff']),
+            default => $this->store->each($collection),
+        };
 
         return array_map(fn ($r) => array_diff_key($r, array_flip(['password', 'mfa_secret', 'mfa_pending', 'recovery_codes', 'remember_token', 'path', 'blocks_path', 'result_path', 'payload', 'api_key', 'secret', 'published_snapshot'])), $this->access->filter($request->user(), $ability.'.read', $records));
     }

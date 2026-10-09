@@ -57,16 +57,52 @@ final class Access
         return $this->cache[$collection][$id];
     }
 
+    private function active(?CrmUser $user): bool
+    {
+        return $user && ($user->status ?? 'active') === 'active' && ! ($user->access_expires_at && Carbon::parse($user->access_expires_at)->isPast());
+    }
+
+    private function isClient(CrmUser $user): bool
+    {
+        return (bool) array_intersect(['client', 'prospect'], $user->roles ?? []);
+    }
+
+    private function assigned(string $id, array $record): bool
+    {
+        return ($record['owner_id'] ?? null) === $id || ($record['employee_id'] ?? null) === $id || ($record['user_id'] ?? null) === $id || in_array($id, $record['team_ids'] ?? [], true) || in_array($id, $record['member_ids'] ?? [], true);
+    }
+
+    /** The broadest scope the user's roles grant for an ability ('firm', 'team' or 'assigned'), or null. Record walls are not applied; portal users hold no staff scope. */
+    public function scope(?CrmUser $user, string $ability): ?string
+    {
+        if (! $this->active($user) || $this->isClient($user)) {
+            return null;
+        }
+        $domain = explode('.', $ability, 2)[0];
+        $permissions = config('permissions.roles');
+        $scope = null;
+        foreach ($user->roles ?? [] as $role) {
+            $custom = $this->lookup('roles', $role);
+            $rules = $custom['permissions'] ?? $permissions[$role] ?? [];
+            foreach ([$ability, $domain.'.*', '*'] as $key) {
+                if (isset($rules[$key])) {
+                    $candidate = $rules[$key];
+                    if ($candidate === 'firm' || $scope === null) {
+                        $scope = $candidate;
+                    }
+                }
+            }
+        }
+
+        return $scope;
+    }
+
     public function can(?CrmUser $user, string $ability, ?array $record = null): bool
     {
-        if (! $user || ($user->status ?? 'active') !== 'active') {
-            return false;
-        }
-        if ($user->access_expires_at && Carbon::parse($user->access_expires_at)->isPast()) {
+        if (! $this->active($user)) {
             return false;
         }
         $id = $user->id;
-        $roles = $user->roles ?? [];
         if ($record && in_array($id, $record['denied_user_ids'] ?? [], true)) {
             return false;
         }
@@ -77,14 +113,29 @@ final class Access
         if ($record && in_array($domain, ['conversations', 'messages']) && ! in_array($id, $record['member_ids'] ?? [], true)) {
             return false;
         }
-        if ($record && isset($record['matter_id']) && in_array($domain, ['documents', 'tasks', 'proceedings', 'conversations', 'messages', 'ai_runs', 'time_entries', 'expenses', 'recurring_invoices'])) {
+        $client = $this->isClient($user);
+        if ($record && isset($record['matter_id']) && in_array($domain, ['documents', 'tasks', 'proceedings', 'conversations', 'messages', 'ai_runs', 'time_entries', 'expenses', 'recurring_invoices', 'leads'])) {
             $matter = $this->lookup('matters', $record['matter_id']);
             if (! $matter || ! $this->can($user, 'matters.read', $matter)) {
                 return false;
             }
         }
+        // Staff see an invoice only through the live matter's wall; a payer sees invoices shared with them without legal-file access.
+        if ($record && ! empty($record['matter_id']) && $domain === 'invoices' && ! $client) {
+            $matter = $this->lookup('matters', $record['matter_id']);
+            if (! $matter || in_array($id, $matter['denied_user_ids'] ?? [], true) || (($matter['confidentiality'] ?? '') === 'restricted' && ! $this->assigned($id, $matter))) {
+                return false;
+            }
+        }
+        if ($record && $domain === 'ai_runs') {
+            foreach ($record['source_versions'] ?? [] as $source) {
+                $document = $this->lookup('documents', (string) ($source['id'] ?? ''));
+                if (! $document || ! $this->can($user, 'documents.read', $document)) {
+                    return false;
+                }
+            }
+        }
         $read = in_array($action, ['read', 'view', 'download', 'list']);
-        $client = in_array('client', $roles, true) || in_array('prospect', $roles, true);
         if ($client) {
             if (! $read || ! $record) {
                 return false;
@@ -101,27 +152,14 @@ final class Access
         if ($domain === 'payslips' && $read && ($record['employee_id'] ?? null) === $id) {
             return true;
         }
-        $permissions = config('permissions.roles');
-        $scope = null;
-        foreach ($roles as $role) {
-            $custom = $this->lookup('roles', $role);
-            $rules = $custom['permissions'] ?? $permissions[$role] ?? [];
-            foreach ([$ability, $domain.'.*', '*'] as $key) {
-                if (isset($rules[$key])) {
-                    $candidate = $rules[$key];
-                    if ($candidate === 'firm' || $scope === null) {
-                        $scope = $candidate;
-                    }
-                }
-            }
-        }
+        $scope = $this->scope($user, $ability);
         if (! $scope) {
             return false;
         }
         if (! $record) {
             return true;
         }
-        $assigned = ($record['owner_id'] ?? null) === $id || ($record['employee_id'] ?? null) === $id || ($record['user_id'] ?? null) === $id || in_array($id, $record['team_ids'] ?? [], true) || in_array($id, $record['member_ids'] ?? [], true);
+        $assigned = $this->assigned($id, $record);
         if (($record['confidentiality'] ?? '') === 'restricted' && ! $assigned) {
             return false;
         }
