@@ -4,6 +4,7 @@
 
 namespace App\Domain\Operations;
 
+use App\Auth\CrmUser;
 use App\Contracts\RecordStore;
 use App\Support\Access;
 use App\Support\Audit;
@@ -90,6 +91,11 @@ final class OperationsService
             throw ValidationException::withMessages(['lead' => 'This lead has become a matter; update parties through reviewed matter work.']);
         }
         $record = array_replace($old ?? ['owner_id' => $user->id, 'team_ids' => [], 'client_ids' => [], 'denied_user_ids' => [], 'status' => $this->defaultStatus($collection)], $data);
+        // Ownership, team, denials and confidentiality decide who can reach the record at all, so only firm-wide roles change them.
+        $changes = $this->accessChanges($user, $old, $data, isset($record['matter_id']));
+        foreach (array_keys($changes) as $field) {
+            abort_unless($this->access->scope($user, $collection.'.'.(in_array($field, ['owner_id', 'team_ids'], true) ? 'assign' : 'share')) === 'firm', 403, 'Only firm-wide roles can change ownership, team, denials or confidentiality.');
+        }
         if ($collection === 'leads' && $old && array_intersect(array_keys($data), ['name', 'email', 'connected_parties', 'contact_id'])) {
             unset($record['conflict_review'], $record['engagement']);
             $record['status'] = 'conflict_review';
@@ -102,10 +108,16 @@ final class OperationsService
             $record['denied_user_ids'] = $matter['denied_user_ids'] ?? [];
             $record['confidentiality'] = $matter['confidentiality'] ?? 'standard';
         }
+        if ($changes) {
+            $this->keepOwnerAccess($collection, $record);
+        }
 
-        return $this->store->transaction(function () use ($collection, $id, $record, $version, $user) {
+        return $this->store->transaction(function () use ($collection, $id, $record, $version, $user, $changes) {
             $saved = $id ? $this->store->put($collection, $id, $record, $version) : $this->store->create($collection, $record);
             $this->audit->log($user->id, $id ? 'record.updated' : 'record.created', $collection, $saved['id']);
+            if ($changes) {
+                $this->audit->log($user->id, 'record.access_changed', $collection, $saved['id'], ['changes' => $changes]);
+            }
             $this->outbox->enqueue('record.changed', ['collection' => $collection, 'id' => $saved['id'], 'actor_id' => $user->id]);
 
             return $saved;
@@ -216,6 +228,40 @@ final class OperationsService
     private function collection(string $collection): void
     {
         abort_unless(in_array($collection, self::COLLECTIONS, true), 404);
+    }
+
+    /** Access-defining fields the input really changes; fields a parent matter dictates are not the editor's to change. */
+    private function accessChanges($user, ?array $old, array $data, bool $matterLinked): array
+    {
+        $before = ['owner_id' => $old ? ($old['owner_id'] ?? null) : $user->id, 'team_ids' => $old['team_ids'] ?? [], 'denied_user_ids' => $old['denied_user_ids'] ?? [], 'confidentiality' => $old['confidentiality'] ?? 'standard'];
+        $normal = function ($value) {
+            if (! is_array($value)) {
+                return $value;
+            }
+            $value = array_values(array_unique(array_map('strval', $value)));
+            sort($value);
+
+            return $value;
+        };
+        $changes = [];
+        foreach ($before as $field => $value) {
+            if (array_key_exists($field, $data) && ! ($matterLinked && $field !== 'owner_id') && $normal($data[$field]) !== $normal($value)) {
+                $changes[$field] = ['from' => $value, 'to' => $data[$field]];
+            }
+        }
+
+        return $changes;
+    }
+
+    /** A record must never end up beyond every active owner's reach; owners are the recovery path for walls and assignments. */
+    private function keepOwnerAccess(string $collection, array $record): void
+    {
+        foreach ($this->store->each('users') as $candidate) {
+            if (in_array('owner', $candidate['roles'] ?? [], true) && $this->access->can(new CrmUser($candidate), $collection.'.write', $record)) {
+                return;
+            }
+        }
+        abort(422, 'At least one active owner must keep access. Assign an owner or remove their denial.');
     }
 
     private function defaultStatus(string $collection): string
