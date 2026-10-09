@@ -45,6 +45,7 @@ final class ContentController extends Controller
         $collection = $this->collection($request);
         $this->access->authorize($request->user(), $collection.'.write');
         [$data, $blocks] = $this->validateData($request, false);
+        $this->authorizeCanonical($request, $data);
         if ($collection === 'documents' && ! empty($data['matter_id'])) {
             $matter = $this->store->get('matters', $data['matter_id']);
             abort_unless($matter !== null, 422, 'Matter not found.');
@@ -63,6 +64,7 @@ final class ContentController extends Controller
         $record = $this->content->find($collection, $id);
         $this->access->authorize($request->user(), $collection.'.write', $record);
         [$data, $blocks] = $this->validateData($request, true);
+        $this->authorizeCanonical($request, $data, $record);
         unset($data['matter_id']); // Moving between legal matters requires a separate grant-aware operation.
         $record = $this->content->update($collection, $id, $data, $blocks, (int) $request->input('expected_version'), $request->user()->id);
 
@@ -142,6 +144,14 @@ final class ContentController extends Controller
         $this->audit->log($request->user()->id, $collection.'.exported', $collection, $id, ['format' => $format, 'version' => $record['version']]);
 
         return response($bytes)->withHeaders(['Content-Type' => $format === 'pdf' ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'Content-Disposition' => 'attachment; filename="document-'.preg_replace('/[^a-zA-Z0-9_-]/', '', $id).'.'.$format.'"', 'Cache-Control' => 'private, no-store', 'X-Robots-Tag' => 'noindex, nofollow', 'X-Content-Type-Options' => 'nosniff']);
+    }
+
+    private function authorizeCanonical(Request $request, array $data, ?array $record = null): void
+    {
+        $canonical = $data['seo']['canonical'] ?? null;
+        if (! empty($canonical) && $canonical !== ($record['seo']['canonical'] ?? null) && ! $this->seo->sameOrigin($canonical)) {
+            abort_unless(array_intersect($request->user()->roles, ['owner', 'admin']) !== [], 403, 'Only administrators can point a canonical URL at another site.');
+        }
     }
 
     private function validatePublicBlocks(array $blocks): void

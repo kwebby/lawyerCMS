@@ -166,7 +166,10 @@ final class Seo
         $website ??= $this->store->get('settings', 'website-state')['published']['document'] ?? null;
         $settings = $this->websiteSettings($this->settings(), $website);
         $site = $settings['site'];
-        $seo = array_replace($site['seo'] ?? [], $settings['types'][$page['type'] ?? 'page'] ?? [], array_filter($page['seo'] ?? [], fn ($value) => $value !== null && $value !== ''));
+        $present = fn ($value) => $value !== null && $value !== '';
+        $inherited = array_replace(array_filter($site['seo'] ?? [], $present), array_filter($settings['types'][$page['type'] ?? 'page'] ?? [], $present));
+        unset($inherited['canonical']); // Only a page's own reviewed canonical may point elsewhere.
+        $seo = array_replace($inherited, array_filter($page['seo'] ?? [], $present));
         $base = rtrim($site['url'], '/');
         $url = $base.$this->path($page);
         $canonical = $seo['canonical'] ?? $url;
@@ -338,6 +341,13 @@ final class Seo
         }
 
         return null;
+    }
+
+    public function sameOrigin(string $url): bool
+    {
+        $origin = fn (string $value) => strtolower(parse_url($value, PHP_URL_SCHEME).'://'.parse_url($value, PHP_URL_HOST).':'.parse_url($value, PHP_URL_PORT));
+
+        return $origin($url) === $origin($this->settings()['site']['url']);
     }
 
     private function webUrl(string $url): bool

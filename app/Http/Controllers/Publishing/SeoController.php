@@ -37,9 +37,22 @@ final class SeoController extends Controller
             foreach ($data['types'] ?? [] as $type => $values) {
                 $data['types'][$type] = $this->seo->validate($values);
             }
-            foreach (array_merge([$data['site']['seo'] ?? []], array_values($data['types'] ?? [])) as $values) {
+            // Site and page-type defaults apply to every page at once without review: no canonical, admin-only indexing.
+            $admin = array_intersect($request->user()->roles, ['owner', 'admin']) !== [];
+            $current = $this->seo->settings();
+            $defaults = isset($data['site']['seo']) ? [[$data['site']['seo'], $current['site']['seo'] ?? []]] : [];
+            foreach ($data['types'] ?? [] as $type => $values) {
+                $defaults[] = [$values, $current['types'][$type] ?? []];
+            }
+            foreach ($defaults as [$values, $stored]) {
+                if (! empty($values['canonical'])) {
+                    throw ValidationException::withMessages(['seo' => 'Set canonical URLs on individual pages, not as a site or page-type default.']);
+                }
                 if (! empty($values['advanced_schema'])) {
-                    abort_unless(array_intersect($request->user()->roles, ['owner', 'admin']) !== [], 403, 'Advanced schema is limited to administrators.');
+                    abort_unless($admin, 403, 'Advanced schema is limited to administrators.');
+                }
+                if (($values['robots'] ?? null) !== ($stored['robots'] ?? null)) {
+                    abort_unless($admin, 403, 'Only administrators can change site-wide or page-type indexing.');
                 }
             }
             if (isset($data['site']['url'])) {

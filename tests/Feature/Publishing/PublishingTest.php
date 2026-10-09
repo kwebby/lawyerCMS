@@ -127,6 +127,31 @@ class PublishingTest extends TestCase
         $this->get('/p/notice-hindi')->assertSee('hreflang="en"', false);
     }
 
+    public function test_site_and_type_defaults_cannot_move_canonicals_and_only_admins_change_their_indexing(): void
+    {
+        $this->publish($this->createPage());
+        $this->actingAs($this->user('content'));
+        foreach ([['site' => ['seo' => ['canonical' => 'https://attacker.example/']]], ['types' => ['article' => ['canonical' => 'https://attacker.example/']]]] as $payload) {
+            $this->patchJson('/api/v1/publishing/settings', $payload)->assertUnprocessable();
+        }
+        $this->patchJson('/api/v1/publishing/settings', ['site' => ['seo' => ['robots' => 'noindex,nofollow']]])->assertForbidden();
+        $this->patchJson('/api/v1/publishing/settings', ['types' => ['article' => ['robots' => 'noindex,follow']]])->assertForbidden();
+        $this->patchJson('/api/v1/publishing/settings', ['types' => ['article' => ['og_title' => 'Insights']]])->assertOk();
+        $this->postJson('/api/v1/pages', ['title' => 'Elsewhere', 'slug' => 'elsewhere', 'type' => 'page', 'seo' => ['canonical' => 'https://attacker.example/page']])->assertForbidden();
+        $this->postJson('/api/v1/pages', ['title' => 'Duplicate', 'slug' => 'duplicate', 'type' => 'page', 'seo' => ['canonical' => 'http://localhost/p/legal-notice']])->assertCreated();
+        $this->get('/p/legal-notice')->assertSee('canonical" href="http://localhost/p/legal-notice', false);
+
+        $this->actingAs($this->user('admin'));
+        $this->patchJson('/api/v1/publishing/settings', ['types' => ['article' => ['robots' => 'noindex,follow']]])->assertOk();
+        $this->get('/sitemap.xml')->assertDontSee('/p/legal-notice');
+        $this->patchJson('/api/v1/publishing/settings', ['types' => ['article' => []]])->assertOk();
+        $this->postJson('/api/v1/pages', ['title' => 'Syndicated', 'slug' => 'syndicated', 'type' => 'page', 'seo' => ['canonical' => 'https://partner.example/original']])->assertCreated();
+        $stored = $this->store->get('settings', 'publishing');
+        $this->store->put('settings', 'publishing', array_replace_recursive($stored, ['site' => ['seo' => ['canonical' => 'https://attacker.example/']]]), $stored['version']);
+        $this->get('/p/legal-notice')->assertSee('canonical" href="http://localhost/p/legal-notice', false)->assertDontSee('attacker.example');
+        $this->get('/sitemap.xml')->assertSee('/p/legal-notice', false);
+    }
+
     public function test_documents_support_review_and_private_pdf_docx_exports(): void
     {
         $document = $this->postJson('/api/v1/documents', ['title' => 'Client letter', 'blocks' => [['type' => 'heading', 'props' => ['level' => 2], 'content' => 'Next steps'], ['type' => 'paragraph', 'content' => 'Please supply the referenced documents.']]])->assertCreated()->json('data');
