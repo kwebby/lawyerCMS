@@ -187,6 +187,32 @@ class WebsiteRenderingTest extends TestCase
         }
     }
 
+    public function test_homepage_body_comes_only_from_a_published_home_route(): void
+    {
+        $document = $this->document();
+        $document['home']['sections'][] = array_replace($document['home']['sections'][0], ['id' => 'home-body', 'type' => 'content', 'heading' => 'From the firm', 'visible' => true]);
+        $this->publish($document);
+        $content = app(ContentRepository::class);
+        $transition = function (array $page) use ($content) {
+            foreach (['review', 'approve', 'publish'] as $action) {
+                $page = $content->transition('pages', $page['id'], $action, $page['version'], $this->actor);
+            }
+
+            return $page;
+        };
+        $page = $transition($content->create('pages', ['title' => 'About the firm', 'slug' => 'about', 'type' => 'page'], [['type' => 'paragraph', 'content' => 'Reviewed about text.']], $this->actor));
+        $this->get('/')->assertOk()->assertSee('From the firm')->assertDontSee('Reviewed about text.');
+        $page = $content->update('pages', $page['id'], ['slug' => 'home'], null, $page['version'], $this->actor);
+        $this->assertSame('draft', $this->store->get('page_routes', hash('sha256', 'home'))['status']);
+        $this->get('/')->assertOk()->assertDontSee('Reviewed about text.');
+        $page = $transition($page);
+        $this->get('/')->assertOk()->assertSee('Reviewed about text.');
+        $transition($content->update('pages', $page['id'], ['slug' => 'welcome'], null, $page['version'], $this->actor));
+        $this->assertSame('redirect', $this->store->get('page_routes', hash('sha256', 'home'))['status']);
+        $this->get('/')->assertOk()->assertSee('From the firm')->assertDontSee('Reviewed about text.');
+        $this->get('/p/welcome')->assertOk()->assertSee('Reviewed about text.');
+    }
+
     public function test_published_website_preserves_imported_inner_page_templates_without_replacing_homepage_sections(): void
     {
         $themes = app(Themes::class);

@@ -85,7 +85,8 @@ final class PublicController extends Controller
     private function websiteHome(array $website): array
     {
         $route = $this->store->get('page_routes', hash('sha256', 'home'));
-        $published = $route ? ($this->store->get('pages', $route['page_id'])['published_snapshot'] ?? []) : [];
+        $published = ($route['status'] ?? '') === 'published' ? ($this->store->get('pages', $route['page_id'])['published_snapshot'] ?? []) : [];
+        $published = ($published['slug'] ?? null) === 'home' ? $published : [];
         $timestamp = $this->store->get('settings', 'website-state')['published']['published_at'] ?? now()->toIso8601String();
 
         return array_replace($published, ['id' => 'website-home', 'slug' => 'home', 'type' => 'page', 'title' => $website['home']['title'], 'summary' => $website['home']['description'], 'created_at' => $timestamp, 'updated_at' => $timestamp, 'content_updated_at' => $timestamp]);
