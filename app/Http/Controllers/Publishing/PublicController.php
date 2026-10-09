@@ -141,7 +141,13 @@ final class PublicController extends Controller
             'page' => $page, 'site' => $this->seo->settings()['site'], 'theme' => $theme, 'meta' => $meta,
             'sections' => $website !== null && empty($website['theme_id']) ? [['type' => 'hero'], ['type' => 'content']] : ($theme['templates'][$page['type']] ?? $theme['templates']['page'])['sections'],
             'bodyHtml' => preg_replace('~<(/?)h1(?=[ >])~', '<$1h2', $this->blocks->html($this->content->body($page))), 'preview' => $preview, 'nonce' => $nonce,
-        ] + $extra)->withHeaders(['Cache-Control' => $preview ? 'private, no-store' : 'public, max-age=60', 'X-Robots-Tag' => $preview ? 'noindex, nofollow' : $meta['robots'], 'Content-Security-Policy' => "default-src 'self'; script-src 'nonce-{$nonce}'; style-src 'nonce-{$nonce}'; style-src-attr 'unsafe-inline'; img-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'", 'X-Content-Type-Options' => 'nosniff']);
+        ] + $extra)->withHeaders(['Cache-Control' => $this->cacheControl($preview), 'X-Robots-Tag' => $preview ? 'noindex, nofollow' : $meta['robots'], 'Content-Security-Policy' => "default-src 'self'; script-src 'nonce-{$nonce}'; style-src 'nonce-{$nonce}'; style-src-attr 'unsafe-inline'; img-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'", 'X-Content-Type-Options' => 'nosniff']);
+    }
+
+    /** A response that may set a session cookie must never be stored by a shared cache. */
+    private function cacheControl(bool $preview = false): string
+    {
+        return $preview || request()->hasSession() ? 'private, no-store' : 'public, max-age=60';
     }
 
     public function sitemap()
@@ -165,7 +171,7 @@ final class PublicController extends Controller
             $xml .= '</url>';
         }
 
-        return response($xml.'</urlset>')->header('Content-Type', 'application/xml; charset=UTF-8')->header('Cache-Control', 'public, max-age=60');
+        return response($xml.'</urlset>')->header('Content-Type', 'application/xml; charset=UTF-8')->header('Cache-Control', $this->cacheControl());
     }
 
     public function indexNowKey()
@@ -173,7 +179,7 @@ final class PublicController extends Controller
         $site = $this->seo->settings()['site'];
         abort_unless(($site['indexnow_enabled'] ?? false) && ! empty($site['indexnow_key']), 404);
 
-        return response($site['indexnow_key'])->header('Content-Type', 'text/plain; charset=UTF-8')->header('X-Robots-Tag', 'noindex')->header('Cache-Control', 'public, max-age=60');
+        return response($site['indexnow_key'])->header('Content-Type', 'text/plain; charset=UTF-8')->header('X-Robots-Tag', 'noindex')->header('Cache-Control', $this->cacheControl());
     }
 
     public function sitemapIndex()

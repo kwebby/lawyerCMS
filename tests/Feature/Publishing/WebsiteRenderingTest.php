@@ -167,6 +167,26 @@ class WebsiteRenderingTest extends TestCase
         Http::assertSent(fn ($request) => $request['secret'] === 'enquiry-secret' && $request['response'] === 'valid-token');
     }
 
+    public function test_publicly_cacheable_responses_never_set_cookies_and_session_pages_are_private(): void
+    {
+        $this->publish($this->document());
+        $page = app(ContentRepository::class)->create('pages', ['title' => 'About the firm', 'slug' => 'about', 'type' => 'page'], [['type' => 'paragraph', 'content' => 'About us.']], $this->actor);
+        foreach (['review', 'approve', 'publish'] as $action) {
+            $page = app(ContentRepository::class)->transition('pages', $page['id'], $action, $page['version'], $this->actor);
+        }
+        foreach (['/', '/p/about', '/sitemap.xml'] as $path) {
+            $response = $this->get($path)->assertOk();
+            $this->assertStringContainsString('public', $response->headers->get('Cache-Control'), $path);
+            $this->assertSame([], $response->headers->getCookies(), $path);
+        }
+        $this->assertSame([], $this->get('/robots.txt')->assertOk()->headers->getCookies());
+        foreach (['/contact-request', '/api/v1/website/preview', '/api/v1/pages/'.$page['id'].'/preview'] as $path) {
+            $response = $this->get($path)->assertOk();
+            $this->assertSame('no-store, private', $response->headers->get('Cache-Control'), $path);
+            $this->assertNotSame([], $response->headers->getCookies(), $path);
+        }
+    }
+
     public function test_published_website_preserves_imported_inner_page_templates_without_replacing_homepage_sections(): void
     {
         $themes = app(Themes::class);

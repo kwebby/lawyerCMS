@@ -133,7 +133,7 @@ Only published, indexable, canonical pages enter the public sitemap. Private pre
 
 Website state follows `draft → in_review → approved → published`. Saving a change returns it to draft and invalidates approval. Approval records a hash; publishing verifies that the approved document is unchanged. Nobody who saved the draft since its last approval can approve it. A small practice with a single approver can let an owner allow self-approval in Settings → Security; each self-approval is audited. Every write carries the current `expected_version`. If another editor has saved, preserve/download unsaved work, reload and reconcile explicitly.
 
-The saved preview shows the saved draft. It does not include unsaved local fields. Published snapshots remain stable until the next successful publication. The previous 40 published snapshots are retained for rollback. Rollback requires publish permission and recent authentication, restores the chosen website document and records a new publication. Individual page bodies have independent revisions.
+The saved preview shows the saved draft. It does not include unsaved local fields. Published snapshots remain stable until the next successful publication. Public pages, the sitemap, robots.txt and theme/font files are served without a session or cookies, so a shared cache may store them briefly; the contact page and private previews use the session and are sent `private, no-store`. The previous 40 published snapshots are retained for rollback. Rollback requires publish permission and recent authentication, restores the chosen website document and records a new publication. Individual page bodies have independent revisions.
 
 ## Enquiries and public AI tools
 

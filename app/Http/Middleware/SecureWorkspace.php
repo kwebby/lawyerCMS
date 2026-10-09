@@ -13,7 +13,7 @@ class SecureWorkspace
 {
     public function handle(Request $request, Closure $next): Response
     {
-        if ($user = $request->user()) {
+        if ($request->hasSession() && ($user = $request->user())) {
             $epoch = $request->session()->get('auth.epoch');
             if ($epoch !== null && $epoch !== ($user->session_epoch ?? 0)) {
                 Auth::logout();

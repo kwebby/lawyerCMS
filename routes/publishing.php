@@ -7,7 +7,12 @@ use App\Http\Controllers\Publishing\PublicController;
 use App\Http\Controllers\Publishing\SeoController;
 use App\Http\Controllers\Publishing\ThemeController;
 use App\Http\Controllers\Publishing\WebsiteEnquiryController;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 Route::middleware('auth')->prefix('api/v1')->group(function () {
     foreach (['pages', 'documents'] as $collection) {
@@ -41,12 +46,15 @@ Route::middleware('auth')->prefix('api/v1')->group(function () {
     Route::get('seo/audit', [SeoController::class, 'audit']);
     Route::match(['get', 'post'], 'seo/visibility', [SeoController::class, 'visibility']);
 });
-Route::get('/', [PublicController::class, 'home'])->name('home');
-Route::get('/p/{slug}', [PublicController::class, 'page'])->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*');
-Route::get('/sitemap.xml', [PublicController::class, 'sitemap']);
-Route::get('/sitemap-index.xml', [PublicController::class, 'sitemapIndex']);
-Route::get('/indexnow-key.txt', [PublicController::class, 'indexNowKey']);
-Route::get('/robots.txt', [PublicController::class, 'robots']);
+// Publicly cacheable responses must never carry a session or XSRF cookie, so these routes run without them.
+Route::withoutMiddleware([EncryptCookies::class, AddQueuedCookiesToResponse::class, StartSession::class, ShareErrorsFromSession::class, PreventRequestForgery::class])->group(function () {
+    Route::get('/', [PublicController::class, 'home'])->name('home');
+    Route::get('/p/{slug}', [PublicController::class, 'page'])->where('slug', '[a-z0-9]+(?:-[a-z0-9]+)*');
+    Route::get('/sitemap.xml', [PublicController::class, 'sitemap']);
+    Route::get('/sitemap-index.xml', [PublicController::class, 'sitemapIndex']);
+    Route::get('/indexnow-key.txt', [PublicController::class, 'indexNowKey']);
+    Route::get('/robots.txt', [PublicController::class, 'robots']);
+    Route::get('/theme-assets/{id}/{path}', [ThemeController::class, 'asset'])->where('path', '[a-zA-Z0-9_./-]+');
+});
 Route::get('/contact-request', [WebsiteEnquiryController::class, 'form']);
 Route::post('/contact-request', [WebsiteEnquiryController::class, 'store'])->middleware('throttle:5,10');
-Route::get('/theme-assets/{id}/{path}', [ThemeController::class, 'asset'])->where('path', '[a-zA-Z0-9_./-]+');
