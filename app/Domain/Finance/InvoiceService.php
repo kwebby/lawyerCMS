@@ -84,18 +84,13 @@ final class InvoiceService
             }
             $business = $this->store->get('settings', 'business') ?? [];
             abort_unless(! empty($business['legal_name']) && ! empty($business['address']), 422, 'Set business legal name and address before issuing invoices.');
-            $prefix = preg_replace('/[^A-Za-z0-9-]/', '', $business['invoice_prefix'] ?? 'INV') ?: 'INV';
-            $year = now()->format('Y');
-            $sequenceId = hash('sha256', $prefix.'-'.$year);
-            $sequence = $this->store->get('invoice_sequences', $sequenceId);
-            $next = (int) ($sequence['next'] ?? 1);
-            $sequence ? $this->store->put('invoice_sequences', $sequenceId, ['next' => $next + 1], $sequence['version']) : $this->store->create('invoice_sequences', ['next' => 2], $sequenceId);
+            $number = $this->nextNumber('invoice', $business);
             $business = array_intersect_key($business, array_flip(['legal_name', 'trading_name', 'address', 'tax_id', 'registration_id', 'email', 'phone', 'payment_instructions', 'terms', 'logo_file_id', 'logo_data', 'signature', 'currency']));
             $design = $this->store->get('settings', 'invoice_design') ?? ['template' => 'classic', 'paper' => 'A4', 'accent' => '#174D3B', 'font' => 'dejavusans', 'margin_mm' => 15];
             if (! empty($invoice['template'])) {
                 $design['template'] = $invoice['template'];
             }
-            $snapshot = array_merge($invoice, ['number' => $prefix.'-'.$year.'-'.str_pad((string) $next, 6, '0', STR_PAD_LEFT), 'business' => $business, 'design' => $design, 'issued_at' => now()->toIso8601String()]);
+            $snapshot = array_merge($invoice, ['number' => $number, 'business' => $business, 'design' => $design, 'issued_at' => now()->toIso8601String()]);
             unset($snapshot['id'], $snapshot['version'], $snapshot['created_at'], $snapshot['updated_at']);
             $invoice = $this->store->put('invoices', $id, array_replace($invoice, ['status' => 'issued', 'visibility' => 'shared', 'number' => $snapshot['number'], 'issued_at' => $snapshot['issued_at'], 'issued_by' => $user->id, 'snapshot' => $snapshot]), $invoice['version']);
             $this->audit->log($user->id, 'invoice.issued', 'invoices', $id, ['number' => $invoice['number']]);
@@ -103,6 +98,23 @@ final class InvoiceService
 
             return $invoice;
         });
+    }
+
+    /**
+     * Next number of a gapless yearly series (invoice, CN credit notes, RCT receipts). Call inside the transaction that
+     * creates the document: the sequence row is locked and version-checked, and a rollback releases the number.
+     */
+    private function nextNumber(string $type, ?array $business = null): string
+    {
+        $business ??= $this->store->get('settings', 'business') ?? [];
+        $prefix = preg_replace('/[^A-Za-z0-9-]/', '', $business['invoice_prefix'] ?? 'INV') ?: 'INV';
+        $series = $prefix.($type === 'invoice' ? '' : '-'.$type).'-'.now()->format('Y');
+        $sequenceId = hash('sha256', $type === 'invoice' ? $series : $type.':'.$series);
+        $sequence = $this->store->get('invoice_sequences', $sequenceId);
+        $next = (int) ($sequence['next'] ?? 1);
+        $sequence ? $this->store->put('invoice_sequences', $sequenceId, ['next' => $next + 1], $sequence['version']) : $this->store->create('invoice_sequences', ['next' => 2], $sequenceId);
+
+        return $series.'-'.str_pad((string) $next, 6, '0', STR_PAD_LEFT);
     }
 
     public function payment($user, string $id, array $input): array
@@ -135,7 +147,7 @@ final class InvoiceService
             $outstanding = (int) $invoice['total_minor'] - (int) $invoice['paid_minor'] - (int) ($invoice['credited_minor'] ?? '0');
             abort_if($amount > $outstanding, 409, 'Payment exceeds the outstanding invoice balance.');
             $paid = (int) $invoice['paid_minor'] + $amount;
-            $payment = $this->store->create('payments', ['invoice_id' => $invoiceId, 'owner_id' => $invoice['owner_id'], 'client_ids' => $invoice['client_ids'], 'team_ids' => $invoice['team_ids'] ?? [], 'amount_minor' => (string) $amount, 'currency' => $invoice['currency'], 'method' => $method, 'reference' => $reference, 'confirmed_by' => $actorId, 'confirmed_at' => now()->toIso8601String(), 'refunded_minor' => '0', 'receipt_number' => $invoice['number'].'-R-'.substr($paymentId, 0, 10)], $paymentId);
+            $payment = $this->store->create('payments', ['invoice_id' => $invoiceId, 'owner_id' => $invoice['owner_id'], 'client_ids' => $invoice['client_ids'], 'team_ids' => $invoice['team_ids'] ?? [], 'amount_minor' => (string) $amount, 'currency' => $invoice['currency'], 'method' => $method, 'reference' => $reference, 'confirmed_by' => $actorId, 'confirmed_at' => now()->toIso8601String(), 'refunded_minor' => '0', 'receipt_number' => $this->nextNumber('RCT')], $paymentId);
             $this->store->put('invoices', $invoiceId, array_replace($invoice, ['paid_minor' => (string) $paid, 'status' => $paid + (int) ($invoice['credited_minor'] ?? '0') === (int) $invoice['total_minor'] ? 'paid' : 'part_paid']), $invoice['version']);
             $this->audit->log($actorId, 'invoice.payment_allocated', 'payments', $payment['id'], ['invoice_id' => $invoiceId]);
             $this->outbox->enqueue('payment.received', ['payment_id' => $payment['id'], 'invoice_id' => $invoiceId], 'payment-'.$paymentId);
@@ -162,7 +174,7 @@ final class InvoiceService
             $this->approvals->ensureIndependent($user, [$invoice['issued_by'] ?? null], 'credit note: you issued the original invoice', 'invoices', $invoiceId);
             $credited = (int) ($invoice['credited_minor'] ?? '0') + $amount;
             abort_if($credited > (int) $invoice['total_minor'], 422, 'Credit notes cannot exceed the original invoice total.');
-            $credit = $this->store->create('credit_notes', ['invoice_id' => $invoiceId, 'number' => $invoice['number'].'-C-'.substr($creditId, 0, 10), 'owner_id' => $invoice['owner_id'], 'client_ids' => $invoice['client_ids'], 'currency' => $invoice['currency'], 'amount_minor' => (string) $amount, 'reason' => $data['reason'], 'issued_by' => $user->id, 'issued_at' => now()->toIso8601String(), 'business' => $invoice['snapshot']['business'], 'recipient' => $invoice['snapshot']['recipient']], $creditId);
+            $credit = $this->store->create('credit_notes', ['invoice_id' => $invoiceId, 'number' => $this->nextNumber('CN'), 'owner_id' => $invoice['owner_id'], 'client_ids' => $invoice['client_ids'], 'currency' => $invoice['currency'], 'amount_minor' => (string) $amount, 'reason' => $data['reason'], 'issued_by' => $user->id, 'issued_at' => now()->toIso8601String(), 'business' => $invoice['snapshot']['business'], 'recipient' => $invoice['snapshot']['recipient']], $creditId);
             $status = $credited === (int) $invoice['total_minor'] ? 'credited' : ((int) $invoice['paid_minor'] + $credited >= (int) $invoice['total_minor'] ? 'paid' : 'part_paid');
             $this->store->put('invoices', $invoiceId, array_replace($invoice, ['credited_minor' => (string) $credited, 'status' => $status]), $invoice['version']);
             $this->audit->log($user->id, 'invoice.credit_issued', 'credit_notes', $creditId);

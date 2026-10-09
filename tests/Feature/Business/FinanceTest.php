@@ -65,6 +65,29 @@ final class FinanceTest extends BusinessTestCase
         $this->assertCount(2, $this->store->query('payments', ['invoice_id' => $invoice['id']]));
     }
 
+    public function test_credit_notes_and_receipts_use_gapless_sequences_and_keep_existing_numbers(): void
+    {
+        $service = app(InvoiceService::class);
+        $accounts = $this->user('accounts');
+        $year = now()->format('Y');
+        $first = $service->issue($this->owner, $service->save($this->owner, $this->invoiceInput())['id']);
+        $second = $service->issue($this->owner, $service->save($this->owner, $this->invoiceInput())['id']);
+        $credit = ['amount_minor' => '1000', 'reason' => 'Goodwill', 'idempotency_key' => 'credit-key-001'];
+        $this->assertSame('INV-CN-'.$year.'-000001', $service->credit($accounts, $first['id'], $credit)['number']);
+        $this->assertSame('INV-CN-'.$year.'-000001', $service->credit($accounts, $first['id'], $credit)['number']);
+        $this->actingAs($accounts)->withSession(['auth.confirmed_at' => time()])->postJson('/api/v1/invoices/'.$first['id'].'/credits', ['amount_minor' => '999999', 'reason' => 'Too much', 'idempotency_key' => 'credit-key-002'])->assertUnprocessable();
+        $this->assertSame('INV-CN-'.$year.'-000002', $service->credit($accounts, $second['id'], array_replace($credit, ['idempotency_key' => 'credit-key-003']))['number']);
+
+        $payment = ['amount_minor' => '1000', 'method' => 'bank_transfer', 'reference' => 'BANK-1', 'idempotency_key' => 'payment-key-001'];
+        $this->assertSame('INV-RCT-'.$year.'-000001', $service->payment($this->owner, $first['id'], $payment)['receipt_number']);
+        $this->assertSame('INV-RCT-'.$year.'-000001', $service->payment($this->owner, $first['id'], $payment)['receipt_number']);
+        $this->postJson('/api/v1/invoices/'.$second['id'].'/payments', array_replace($payment, ['amount_minor' => '999999', 'idempotency_key' => 'payment-key-002']))->assertConflict();
+        $this->assertSame('INV-RCT-'.$year.'-000002', $service->payment($this->owner, $second['id'], array_replace($payment, ['idempotency_key' => 'payment-key-003']))['receipt_number']);
+
+        $legacy = $this->store->create('payments', ['invoice_id' => $second['id'], 'amount_minor' => '500', 'currency' => 'USD', 'method' => 'cash', 'reference' => 'Old cash', 'refunded_minor' => '0', 'receipt_number' => $second['number'].'-R-0123456789'], hash('sha256', 'cash:legacy-key-001'));
+        $this->assertSame($legacy['receipt_number'], $service->payment($this->owner, $second['id'], ['amount_minor' => '500', 'method' => 'cash', 'reference' => 'Old cash', 'idempotency_key' => 'legacy-key-001'])['receipt_number']);
+    }
+
     public function test_private_invoice_pdf_is_cached_as_encrypted_file_and_client_access_is_explicit(): void
     {
         $client = $this->user('client');
