@@ -17,6 +17,13 @@ use Symfony\Component\Mailer\Transport\Smtp\Stream\SocketStream;
 
 final class JobRunner
 {
+    private const MAX_ATTEMPTS = 5;
+
+    private const LEASE_SECONDS = 180;
+
+    /** Below the lease, so a handler stopped by the limit leaves a lease that expires and is counted as a failed attempt. */
+    private const HANDLER_SECONDS = 120;
+
     public function __construct(private RecordStore $store, private PrivateFiles $files, private UploadScanner $scanner, private AiGateway $ai, private Settings $settings) {}
 
     public function tick(int $budgetSeconds = 45): array
@@ -33,6 +40,7 @@ final class JobRunner
         $this->store->put('system', 'cron', ['last_run_at' => now()->toISOString()]);
         $this->expireTemporary();
         $jobs = array_merge($this->store->query('jobs', ['status' => 'pending'], 100, 'available_at', 'asc'), $this->store->query('jobs', ['status' => 'running'], 100, 'lease_until', 'asc'));
+        $cpu = (int) ini_get('max_execution_time');
         foreach ($jobs as $candidate) {
             if (microtime(true) - $started > $budgetSeconds - 25) {
                 break;
@@ -42,7 +50,12 @@ final class JobRunner
                 continue;
             }
             try {
-                $this->handle($job);
+                try {
+                    $this->limit(self::HANDLER_SECONDS, self::HANDLER_SECONDS);
+                    $this->handle($job);
+                } finally {
+                    $this->limit(0, $cpu);
+                }
                 $this->finish($job);
                 $done++;
             } catch (\Throwable $error) {
@@ -56,7 +69,10 @@ final class JobRunner
 
     public function claim(string $id): ?array
     {
-        return $this->store->transaction(function () use ($id) {
+        $peek = $this->store->get('jobs', $id);
+        $admins = $peek && $this->exhausted($peek) ? $this->admins() : null; // each() cannot run inside the transaction.
+
+        return $this->store->transaction(function () use ($id, $admins) {
             $job = $this->store->get('jobs', $id);
             if (! $job) {
                 return null;
@@ -67,42 +83,80 @@ final class JobRunner
             if (! in_array($job['status'], ['pending', 'running']) || $job['available_at'] > now()->toISOString()) {
                 return null;
             }
+            if ($this->exhausted($job)) { // The last attempt died without finishing (fatal error, timeout or kill).
+                if ($admins !== null) {
+                    $this->store->put('jobs', $id, array_merge($job, ['status' => 'failed', 'lease_token' => null, 'lease_until' => null, 'last_error' => 'LeaseExpired']), $job['version']);
+                    $this->failed($job, $admins);
+                }
 
-            return $this->store->put('jobs', $id, array_merge($job, ['status' => 'running', 'attempts' => $job['attempts'] + 1, 'lease_token' => (string) Str::uuid(), 'lease_until' => now()->addMinutes(3)->toISOString()]), $job['version']);
+                return null;
+            }
+
+            return $this->store->put('jobs', $id, array_merge($job, ['status' => 'running', 'attempts' => $job['attempts'] + 1, 'lease_token' => (string) Str::uuid(), 'lease_until' => now()->addSeconds(self::LEASE_SECONDS)->toISOString()]), $job['version']);
         });
+    }
+
+    private function exhausted(array $job): bool
+    {
+        return $job['status'] === 'running' && ($job['lease_until'] ?? '') <= now()->toISOString() && $job['attempts'] >= self::MAX_ATTEMPTS;
+    }
+
+    private function admins(): array
+    {
+        $admins = [];
+        foreach ($this->store->each('users') as $user) {
+            if (array_intersect($user['roles'], ['owner', 'admin'])) {
+                $admins[] = $user['id'];
+            }
+        }
+
+        return $admins;
+    }
+
+    /** CPU-time limit plus, where pcntl is available, a wall-clock alarm whose default action kills a hung tick; 0 seconds cancels the alarm. */
+    private function limit(int $seconds, int $cpuSeconds): void
+    {
+        if (function_exists('set_time_limit')) {
+            set_time_limit($cpuSeconds);
+        }
+        if (function_exists('pcntl_alarm') && function_exists('pcntl_signal')) {
+            if ($seconds) {
+                pcntl_signal(SIGALRM, SIG_DFL);
+            }
+            pcntl_alarm($seconds);
+        }
     }
 
     private function finish(array $lease, ?\Throwable $error = null): void
     {
-        $admins = [];
-        if ($error && $lease['attempts'] >= 5) {
-            foreach ($this->store->each('users') as $user) {
-                if (array_intersect($user['roles'], ['owner', 'admin'])) {
-                    $admins[] = $user['id'];
-                }
-            }
-        }
+        $admins = $error && $lease['attempts'] >= self::MAX_ATTEMPTS ? $this->admins() : [];
         $this->store->transaction(function () use ($lease, $error, $admins) {
             $job = $this->store->get('jobs', $lease['id']);
             if (! $job || $job['lease_token'] !== $lease['lease_token']) {
                 return;
             }
-            $terminal = $error && $job['attempts'] >= 5;
+            $terminal = $error && $job['attempts'] >= self::MAX_ATTEMPTS;
             $status = $error ? ($terminal ? 'failed' : 'pending') : 'completed';
             $record = array_merge($job, ['status' => $status, 'lease_token' => null, 'lease_until' => null, 'completed_at' => $error ? null : now()->toISOString(), 'available_at' => now()->addSeconds(min(3600, 30 * 2 ** $job['attempts']))->toISOString(), 'last_error' => $error ? class_basename($error) : null]);
             $this->store->put('jobs', $job['id'], $record, $job['version']);
-            if ($terminal && in_array($job['type'], ['ai.run', 'analyzer.scan', 'analyzer.run'])) {
-                $run = $this->store->get('ai_runs', $job['payload']['run_id']);
-                if ($run && ! in_array($run['status'], ['review', 'approved', 'rejected', 'expired'])) {
-                    $this->store->put('ai_runs', $run['id'], array_merge($run, ['status' => 'failed', 'error' => 'Processing could not complete. Check source readability and integration health; an administrator can inspect the failed job.']), $run['version']);
-                }
-            }
             if ($terminal) {
-                foreach ($admins as $userId) {
-                    $this->store->create('notifications', ['user_id' => $userId, 'title' => 'A background job needs attention', 'category' => 'system', 'severity' => 'error', 'action_required' => true, 'read_at' => null, 'action_url' => '/app/settings', 'job_id' => $job['id']]);
-                }
+                $this->failed($job, $admins);
             }
         });
+    }
+
+    /** Terminal-failure side effects; call inside the transaction that marks the job failed. */
+    private function failed(array $job, array $admins): void
+    {
+        if (in_array($job['type'], ['ai.run', 'analyzer.scan', 'analyzer.run'])) {
+            $run = $this->store->get('ai_runs', $job['payload']['run_id']);
+            if ($run && ! in_array($run['status'], ['review', 'approved', 'rejected', 'expired'])) {
+                $this->store->put('ai_runs', $run['id'], array_merge($run, ['status' => 'failed', 'error' => 'Processing could not complete. Check source readability and integration health; an administrator can inspect the failed job.']), $run['version']);
+            }
+        }
+        foreach ($admins as $userId) {
+            $this->store->create('notifications', ['user_id' => $userId, 'title' => 'A background job needs attention', 'category' => 'system', 'severity' => 'error', 'action_required' => true, 'read_at' => null, 'action_url' => '/app/settings', 'job_id' => $job['id']]);
+        }
     }
 
     public function handle(array $job): void
