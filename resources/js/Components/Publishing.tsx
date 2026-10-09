@@ -454,7 +454,6 @@ function DocumentEditor({
         type: initial?.type || "page",
         locale: initial?.locale || "en",
         author_name: initial?.author_name || "",
-        reviewer_name: initial?.reviewer_name || "",
         jurisdiction: initial?.jurisdiction || "",
         summary: initial?.summary || "",
         review_due_at: initial?.review_due_at || "",
@@ -506,7 +505,6 @@ function DocumentEditor({
                 type: data?.type || "page",
                 locale: data?.locale || "en",
                 author_name: data?.author_name || "",
-                reviewer_name: data?.reviewer_name || "",
                 jurisdiction: data?.jurisdiction || "",
                 summary: data?.summary || "",
                 review_due_at: data?.review_due_at || "",
@@ -972,7 +970,6 @@ function DocumentEditor({
                                   ["locale", "Language code"],
                                   ["translation_group", "Translation group"],
                                   ["author_name", "Author"],
-                                  ["reviewer_name", "Legal reviewer"],
                                   ["jurisdiction", "Jurisdiction"],
                                   ["review_due_at", "Review due date"],
                                   ["summary", "Summary"],
@@ -997,6 +994,20 @@ function DocumentEditor({
                                 />
                             </Field>
                         ))}
+                        {kind === "pages" && (
+                            <Field
+                                label="Legal reviewer"
+                                hint="Recorded from the account that approves this version."
+                            >
+                                <input
+                                    readOnly
+                                    value={
+                                        record?.reviewer_name ||
+                                        "Not yet approved"
+                                    }
+                                />
+                            </Field>
+                        )}
                         {kind === "pages" && (
                             <Field label="Content type">
                                 <select

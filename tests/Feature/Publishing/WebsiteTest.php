@@ -44,9 +44,29 @@ class WebsiteTest extends TestCase
         parent::tearDown();
     }
 
+    private ?CrmUser $reviewer = null;
+
     private function user(string $role): CrmUser
     {
         return new CrmUser($this->store->create('users', ['name' => ucfirst($role), 'email' => uniqid().'@example.com', 'password' => Hash::make('website-test-password'), 'roles' => [$role], 'status' => 'active']));
+    }
+
+    private function asReviewer(callable $callback): mixed
+    {
+        $editor = auth()->user();
+        $this->actingAs($this->reviewer ??= $this->user('content'));
+        try {
+            return $callback();
+        } finally {
+            $this->actingAs($editor);
+        }
+    }
+
+    private function transition(array $state, string $action): array
+    {
+        $send = fn () => $this->postJson('/api/v1/website/'.$action, ['expected_version' => $state['version']])->assertOk()->json('data');
+
+        return $action === 'approve' ? $this->asReviewer($send) : $send();
     }
 
     private function state(): array
@@ -62,7 +82,7 @@ class WebsiteTest extends TestCase
     private function publish(array $state): array
     {
         foreach (['review', 'approve', 'publish'] as $action) {
-            $state = $this->postJson('/api/v1/website/'.$action, ['expected_version' => $state['version']])->assertOk()->json('data');
+            $state = $this->transition($state, $action);
         }
 
         return $state;
@@ -108,7 +128,7 @@ class WebsiteTest extends TestCase
     {
         $state = $this->state();
         foreach (['review', 'approve'] as $action) {
-            $state = $this->postJson('/api/v1/website/'.$action, ['expected_version' => $state['version']])->assertOk()->json('data');
+            $state = $this->transition($state, $action);
         }
         $document = $state['draft'];
         $document['organization']['name'] = 'New identity';
@@ -167,6 +187,36 @@ class WebsiteTest extends TestCase
         $this->postJson('/api/v1/website/publish', ['expected_version' => $state['version']])->assertStatus(423);
     }
 
+    public function test_submission_needs_write_and_approval_needs_an_independent_approver(): void
+    {
+        $owner = auth()->user();
+        $this->store->create('roles', ['permissions' => ['pages.read' => 'firm', 'pages.write' => 'firm']], 'writer');
+        $this->store->create('roles', ['permissions' => ['pages.read' => 'firm', 'pages.approve' => 'firm']], 'approver');
+        $this->actingAs($this->user('writer'));
+        $state = $this->state();
+        $this->assertTrue($state['capabilities']['review']);
+        $document = $state['draft'];
+        $document['home']['title'] = 'Written by the writer';
+        $state = $this->transition($this->save($state, $document), 'review');
+        $this->postJson('/api/v1/website/approve', ['expected_version' => $state['version']])->assertForbidden();
+        $this->actingAs($owner);
+        $document['home']['title'] = 'Edited by the owner';
+        $state = $this->transition($this->save($state, $document), 'review');
+        $this->postJson('/api/v1/website/approve', ['expected_version' => $state['version']])->assertForbidden();
+        $this->actingAs($approver = $this->user('approver'));
+        $this->assertFalse($this->state()['capabilities']['publish']);
+        $state = $this->postJson('/api/v1/website/approve', ['expected_version' => $state['version']])->assertOk()->json('data');
+        $this->assertSame($approver->id, $state['approved_by']);
+        $this->postJson('/api/v1/website/publish', ['expected_version' => $state['version']])->assertForbidden();
+        $this->actingAs($owner);
+        $this->postJson('/api/v1/website/publish', ['expected_version' => $state['version']])->assertOk();
+        $this->assertSame('Edited by the owner', app(Website::class)->published()['home']['title']);
+        $state = $this->transition($this->save($this->state(), $document), 'review');
+        app(Settings::class)->save('security', ['allow_self_approval' => true]);
+        $this->postJson('/api/v1/website/approve', ['expected_version' => $state['version']])->assertOk();
+        $this->assertCount(1, $this->store->query('audit', ['action' => 'approval.self_approved', 'record_id' => 'website-state']));
+    }
+
     public function test_closed_schema_rejects_bad_links_duplicates_fonts_and_unscanned_assets(): void
     {
         $state = $this->state();
@@ -209,13 +259,13 @@ class WebsiteTest extends TestCase
         $document['home']['sections'][0]['type'] = 'testimonials';
         $state = $this->save($state, $document);
         $state = $this->postJson('/api/v1/website/review', ['expected_version' => $state['version']])->assertOk()->json('data');
-        $this->postJson('/api/v1/website/approve', ['expected_version' => $state['version']])->assertUnprocessable()->assertJsonValidationErrors('home.sections.0');
+        $this->asReviewer(fn () => $this->postJson('/api/v1/website/approve', ['expected_version' => $state['version']])->assertUnprocessable()->assertJsonValidationErrors('home.sections.0'));
         $document['home']['sections'][0]['proof_source_url'] = 'https://example.com/permission-record';
         $document['home']['sections'][0]['proof_note'] = 'Reviewer checked authentic statement, permission and local advertising rules.';
         $document['offices'] = [$this->office(['verified_at' => ''])];
         $state = $this->save($state, $document);
         $state = $this->postJson('/api/v1/website/review', ['expected_version' => $state['version']])->assertOk()->json('data');
-        $this->postJson('/api/v1/website/approve', ['expected_version' => $state['version']])->assertUnprocessable()->assertJsonValidationErrors('offices.0');
+        $this->asReviewer(fn () => $this->postJson('/api/v1/website/approve', ['expected_version' => $state['version']])->assertUnprocessable()->assertJsonValidationErrors('offices.0'));
     }
 
     public function test_theme_references_are_validated_and_pinned_without_breaking_legacy_documents(): void
@@ -299,7 +349,7 @@ class WebsiteTest extends TestCase
             $document['brand']['colors'] = array_replace($document['brand']['colors'], $colors);
             $state = $this->save($state, $document);
             $state = $this->postJson('/api/v1/website/review', ['expected_version' => $state['version']])->assertOk()->json('data');
-            $this->postJson('/api/v1/website/approve', ['expected_version' => $state['version']])->assertUnprocessable()->assertJsonValidationErrors('brand.colors.'.array_key_first($colors));
+            $this->asReviewer(fn () => $this->postJson('/api/v1/website/approve', ['expected_version' => $state['version']])->assertUnprocessable()->assertJsonValidationErrors('brand.colors.'.array_key_first($colors)));
             $this->assertNull(app(Website::class)->published());
         }
         $original['brand']['colors']['primary_text'] = '#767676';
@@ -317,7 +367,7 @@ class WebsiteTest extends TestCase
         $published = $this->publish($this->save($state, $document));
         $state = $this->save($published, $published['draft']);
         foreach (['review', 'approve'] as $action) {
-            $state = $this->postJson('/api/v1/website/'.$action, ['expected_version' => $state['version']])->assertOk()->json('data');
+            $state = $this->transition($state, $action);
         }
         $theme = app(Themes::class)->design(['name' => 'Imported palette', 'tokens' => ['accent' => '#123456', 'ink' => '#151515', 'paper' => '#fafafa', 'muted' => '#555555', 'font_family' => 'sans', 'radius' => 12, 'content_width' => 1280], 'navigation' => [['label' => 'Talk to us', 'url' => '/contact-request']], 'templates' => ['page' => ['sections' => [['type' => 'content']]]]], 'test-owner');
         $result = $this->postJson('/api/v1/website/theme', ['expected_version' => $state['version'], 'theme_id' => $theme['id']])->assertOk()->json('data');

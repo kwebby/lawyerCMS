@@ -43,9 +43,29 @@ class PublishingTest extends TestCase
         parent::tearDown();
     }
 
-    private function user(string $role): CrmUser
+    private ?CrmUser $reviewer = null;
+
+    private function user(string $role, ?string $name = null): CrmUser
     {
-        return new CrmUser($this->store->create('users', ['name' => ucfirst($role), 'email' => uniqid().'@example.com', 'password' => Hash::make('a-secure-password'), 'roles' => [$role], 'status' => 'active']));
+        return new CrmUser($this->store->create('users', ['name' => $name ?? ucfirst($role), 'email' => uniqid().'@example.com', 'password' => Hash::make('a-secure-password'), 'roles' => [$role], 'status' => 'active']));
+    }
+
+    private function asReviewer(callable $callback): mixed
+    {
+        $author = auth()->user();
+        $this->actingAs($this->reviewer ??= $this->user('content', 'Riley Reviewer'));
+        try {
+            return $callback();
+        } finally {
+            $this->actingAs($author);
+        }
+    }
+
+    private function transition(array $page, string $action): array
+    {
+        $send = fn () => $this->postJson('/api/v1/pages/'.$page['id'].'/'.$action, ['expected_version' => $page['version']])->assertOk()->json('data');
+
+        return $action === 'approve' ? $this->asReviewer($send) : $send();
     }
 
     private function createPage(array $extra = []): array
@@ -56,7 +76,7 @@ class PublishingTest extends TestCase
     private function publish(array $page): array
     {
         foreach (['review', 'approve', 'publish'] as $action) {
-            $page = $this->postJson('/api/v1/pages/'.$page['id'].'/'.$action, ['expected_version' => $page['version']])->assertOk()->json('data');
+            $page = $this->transition($page, $action);
         }
 
         return $page;
@@ -82,13 +102,49 @@ class PublishingTest extends TestCase
     {
         $page = $this->createPage(['author_name' => null]);
         foreach (['review', 'approve'] as $action) {
-            $page = $this->postJson('/api/v1/pages/'.$page['id'].'/'.$action, ['expected_version' => $page['version']])->json('data');
+            $page = $this->transition($page, $action);
         }
         $this->postJson('/api/v1/pages/'.$page['id'].'/publish', ['expected_version' => $page['version']])->assertUnprocessable();
         $page = $this->patchJson('/api/v1/pages/'.$page['id'], ['expected_version' => $page['version'], 'author_name' => 'Alex', 'title' => '</script><script>alert(1)</script>', 'seo' => ['advanced_schema' => ['@context' => 'https://schema.org', '@type' => 'WebPage', 'description' => '</script><script>alert(2)</script>']]])->json('data');
         $this->publish($page);
         $response = $this->get('/p/legal-notice')->assertOk();
         $response->assertDontSee('</script><script>alert', false)->assertSee('\\u003C\\/script\\u003E', false);
+    }
+
+    public function test_page_approval_needs_the_approve_permission_and_an_independent_reviewer_who_is_named_publicly(): void
+    {
+        $owner = auth()->user();
+        $page = $this->createPage(['reviewer_name' => 'Claimed Senior Partner']);
+        $this->assertNull($page['reviewer_name'] ?? null);
+        $this->store->create('roles', ['permissions' => ['pages.read' => 'firm', 'pages.write' => 'firm', 'pages.review' => 'firm']], 'page-writer');
+        $this->store->create('roles', ['permissions' => ['pages.read' => 'firm', 'pages.approve' => 'firm']], 'page-approver');
+        $this->actingAs($this->user('page-writer'));
+        $page = $this->transition($page, 'review');
+        $this->postJson('/api/v1/pages/'.$page['id'].'/approve', ['expected_version' => $page['version']])->assertForbidden();
+        $this->actingAs($owner);
+        $this->postJson('/api/v1/pages/'.$page['id'].'/approve', ['expected_version' => $page['version']])->assertForbidden();
+        $this->actingAs($this->user('content', 'Eden Editor'));
+        $page = $this->patchJson('/api/v1/pages/'.$page['id'], ['expected_version' => $page['version'], 'title' => 'Understanding a legal notice well'])->assertOk()->json('data');
+        $page = $this->transition($page, 'review');
+        $this->postJson('/api/v1/pages/'.$page['id'].'/approve', ['expected_version' => $page['version']])->assertForbidden();
+        $this->actingAs($this->user('page-approver', 'Pat Approver'));
+        $page = $this->postJson('/api/v1/pages/'.$page['id'].'/approve', ['expected_version' => $page['version']])->assertOk()->json('data');
+        $this->assertSame('Pat Approver', $page['reviewer_name']);
+        $this->postJson('/api/v1/pages/'.$page['id'].'/publish', ['expected_version' => $page['version']])->assertForbidden();
+        $this->actingAs($owner);
+        $this->transition($page, 'publish');
+        $this->get('/p/legal-notice')->assertOk()->assertSee('Reviewed by Pat Approver')->assertDontSee('Claimed Senior Partner');
+        $this->assertSame([], $this->store->query('audit', ['action' => 'approval.self_approved']));
+    }
+
+    public function test_an_owner_can_allow_self_approval_of_pages_which_is_audited(): void
+    {
+        $page = $this->transition($this->createPage(), 'review');
+        $this->postJson('/api/v1/pages/'.$page['id'].'/approve', ['expected_version' => $page['version']])->assertForbidden();
+        app(Settings::class)->save('security', ['allow_self_approval' => true]);
+        $page = $this->postJson('/api/v1/pages/'.$page['id'].'/approve', ['expected_version' => $page['version']])->assertOk()->json('data');
+        $this->assertSame('Owner', $page['reviewer_name']);
+        $this->assertCount(1, $this->store->query('audit', ['action' => 'approval.self_approved', 'record_id' => $page['id']]));
     }
 
     public function test_permissions_prevent_client_and_content_editor_admin_schema_access(): void
@@ -205,7 +261,7 @@ class PublishingTest extends TestCase
         $schema = ['@type' => 'FAQPage', 'mainEntity' => [['@type' => 'Question', 'name' => 'What should I bring?', 'acceptedAnswer' => ['@type' => 'Answer', 'text' => 'Bring the original notice.']]]];
         $page = $this->patchJson('/api/v1/pages/'.$page['id'], ['expected_version' => 1, 'seo' => ['schemas' => ['FAQPage'], 'advanced_schema' => $schema]])->assertOk()->json('data');
         foreach (['review', 'approve'] as $action) {
-            $page = $this->postJson('/api/v1/pages/'.$page['id'].'/'.$action, ['expected_version' => $page['version']])->assertOk()->json('data');
+            $page = $this->transition($page, $action);
         }
         $this->postJson('/api/v1/pages/'.$page['id'].'/publish', ['expected_version' => $page['version']])->assertUnprocessable();
         $page = $this->patchJson('/api/v1/pages/'.$page['id'], ['expected_version' => $page['version'], 'blocks' => [['type' => 'paragraph', 'content' => 'What should I bring? Bring the original notice.']]])->assertOk()->json('data');

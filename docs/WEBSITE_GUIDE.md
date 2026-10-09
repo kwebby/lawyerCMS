@@ -4,7 +4,7 @@
 
 LawyerCMS separates a firm's public website from private client and staff records. Website settings controls the homepage and shared branding; the Content workspace controls individual pages and their BlockNote bodies. Both use reviewed publication. A saved draft never replaces the public version until it is approved and published.
 
-Open `/app/website`. The editor uses dedicated sections for Homepage, Colors & fonts, Public media, Offices, Local listings, Navigation & footer, Page pack and Review & publish. Access follows `pages.read`, `pages.write`, `pages.review`, `pages.approve` and `pages.publish` permissions. Installing fonts and changing their catalog credential additionally requires an owner or administrator.
+Open `/app/website`. The editor uses dedicated sections for Homepage, Colors & fonts, Public media, Offices, Local listings, Navigation & footer, Page pack and Review & publish. Access follows `pages.read`, `pages.write`, `pages.approve` and `pages.publish`: editing and submitting for review need `pages.write`, approving needs `pages.approve`, and publishing or rolling back needs `pages.publish`. Pages in the Content workspace follow the same model. Installing fonts and changing their catalog credential additionally requires an owner or administrator.
 
 ## First publication
 
@@ -123,7 +123,7 @@ The website homepage is `/`; a published CMS `home` page's URL resolves there. N
 
 Write page copy in the Content workspace. The supported BlockNote subset includes headings, lists, tables, quotes, images/files and trusted citation/merge-field/question/page-break blocks. The canonical content is JSON; server renderers validate it and produce HTML/PDF/DOCX. See [Theme API](THEME_API.md#blocknote-subset-and-immutable-revisions) for exact limits.
 
-Page review is `draft → in_review → approved → published`. Autosaves use expected revisions; a stale save returns 409 rather than overwriting another editor. Revisions and comments are application records. Realtime coediting is not part of this baseline.
+Page review is `draft → in_review → approved → published`. The approver must be someone other than the page's author and anyone who edited it since its last approval; the public “Reviewed by” byline is the approving account's name, recorded at approval, and cannot be typed in. Autosaves use expected revisions; a stale save returns 409 rather than overwriting another editor. Revisions and comments are application records. Realtime coediting is not part of this baseline.
 
 Search & Social supports defaults, content-type defaults and page overrides for metadata/social tags/schema. The central application generates title, description, canonical, robots, Open Graph, X cards, language alternates and JSON-LD. Themes cannot add competing tags. Site and content-type defaults change every page at once without review, so they cannot set a canonical URL, and only an owner or administrator can change their indexing (robots) setting. A canonical URL belongs on the individual page; pointing one at another site requires an owner or administrator. Review factual author/reviewer/jurisdiction/source information and visible page content together. Structured data is not a ranking or rich-result guarantee.
 
@@ -131,7 +131,7 @@ Only published, indexable, canonical pages enter the public sitemap. Private pre
 
 ## Review, conflicts and rollback
 
-Website state follows `draft → in_review → approved → published`. Saving a change returns it to draft and invalidates approval. Approval records a hash; publishing verifies that the approved document is unchanged. Every write carries the current `expected_version`. If another editor has saved, preserve/download unsaved work, reload and reconcile explicitly.
+Website state follows `draft → in_review → approved → published`. Saving a change returns it to draft and invalidates approval. Approval records a hash; publishing verifies that the approved document is unchanged. Nobody who saved the draft since its last approval can approve it. A small practice with a single approver can let an owner allow self-approval in Settings → Security; each self-approval is audited. Every write carries the current `expected_version`. If another editor has saved, preserve/download unsaved work, reload and reconcile explicitly.
 
 The saved preview shows the saved draft. It does not include unsaved local fields. Published snapshots remain stable until the next successful publication. The previous 40 published snapshots are retained for rollback. Rollback requires publish permission and recent authentication, restores the chosen website document and records a new publication. Individual page bodies have independent revisions.
 

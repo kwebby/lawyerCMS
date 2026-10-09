@@ -54,7 +54,7 @@ final class Website
         $this->store->transaction(function () use ($document, $version, $actor) {
             $state = $this->current($version);
             $document = $this->validate($document);
-            $state = array_replace($state, ['draft' => $document, 'status' => 'draft', 'approved_hash' => null, 'approved_by' => null, 'approved_at' => null]);
+            $state = array_replace($state, ['draft' => $document, 'status' => 'draft', 'approved_hash' => null, 'approved_by' => null, 'approved_at' => null, 'editor_ids' => array_values(array_unique([...$state['editor_ids'] ?? [], $actor]))]);
             $this->store->put('settings', 'website-state', $state, $version);
             $this->audit->log($actor, 'website.saved', 'settings', 'website-state', ['version' => $version + 1]);
         });
@@ -107,6 +107,7 @@ final class Website
                 $state['approved_hash'] = $this->hash($state['draft']);
                 $state['approved_by'] = $actor;
                 $state['approved_at'] = now()->toISOString();
+                $state['editor_ids'] = [];
             }
             if ($action === 'publish') {
                 if (! hash_equals($state['approved_hash'] ?? '', $this->hash($state['draft']))) {
@@ -129,6 +130,7 @@ final class Website
                 $state['approved_hash'] = $this->hash($state['draft']);
                 $state['approved_by'] = $actor;
                 $state['approved_at'] = now()->toISOString();
+                $state['editor_ids'] = [];
                 $state = $this->snapshot($state, $actor, 'rollback');
             }
             $this->store->put('settings', 'website-state', $state, $version);

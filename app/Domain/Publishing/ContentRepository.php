@@ -51,7 +51,7 @@ final class ContentRepository
                 if ($collection === 'pages' && isset($data['slug'])) {
                     $this->assertSlugAvailable($data['slug'], $id);
                 }
-                $record = array_replace($record, $data, ['status' => 'draft', 'content_updated_at' => now()->toIso8601String(), 'reviewed_by' => null, 'approved_at' => null]);
+                $record = array_replace($record, $data, ['status' => 'draft', 'content_updated_at' => now()->toIso8601String(), 'reviewed_by' => null, 'approved_at' => null], $collection === 'pages' ? ['reviewer_name' => null] : []);
                 if ($path) {
                     $record['blocks_path'] = $path;
                 }
@@ -89,6 +89,9 @@ final class ContentRepository
             if ($action === 'approve') {
                 $record['reviewed_by'] = $actor;
                 $record['approved_at'] = now()->toIso8601String();
+                if ($collection === 'pages') {
+                    $record['reviewer_name'] = (string) ($this->store->get('users', $actor)['name'] ?? '');
+                }
             }
             if ($action === 'publish') {
                 if ($collection !== 'pages') {
@@ -144,6 +147,22 @@ final class ContentRepository
         abort_unless(($record['kind'] ?? '') === 'written' || $collection === 'pages', 422, 'This is an uploaded file, not a written document.');
 
         return $record;
+    }
+
+    /** The author and everyone who edited the record since its last approval. */
+    public function contributors(string $collection, array $record): array
+    {
+        $ids = [$record['owner_id'] ?? null];
+        foreach ($this->store->query('content_revisions', ['collection' => $collection, 'resource_id' => $record['id']], 1000, 'number', 'desc') as $revision) {
+            if ($revision['action'] === 'approve') {
+                break;
+            }
+            if (in_array($revision['action'], ['created', 'edited'], true)) {
+                $ids[] = $revision['actor_id'];
+            }
+        }
+
+        return array_values(array_unique(array_filter($ids)));
     }
 
     public function body(array $record): array

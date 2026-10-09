@@ -7,12 +7,15 @@ namespace App\Http\Controllers\Publishing;
 use App\Domain\Publishing\Website;
 use App\Http\Controllers\Controller;
 use App\Support\Access;
+use App\Support\Approvals;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 final class WebsiteController extends Controller
 {
-    public function __construct(private Website $website, private Access $access) {}
+    private const ABILITIES = ['review' => 'write', 'approve' => 'approve', 'publish' => 'publish', 'rollback' => 'publish'];
+
+    public function __construct(private Website $website, private Access $access, private Approvals $approvals) {}
 
     public function show(Request $request): JsonResponse
     {
@@ -40,8 +43,11 @@ final class WebsiteController extends Controller
 
     public function transition(Request $request, string $action): JsonResponse
     {
-        $this->access->authorize($request->user(), 'pages.'.($action === 'rollback' ? 'publish' : $action));
+        $this->access->authorize($request->user(), 'pages.'.self::ABILITIES[$action]);
         $data = $request->validate(['expected_version' => ['required', 'integer', 'min:1'], 'revision_id' => ['nullable', 'string', 'max:100']]);
+        if ($action === 'approve' && ($state = $this->website->state())['version'] === (int) $data['expected_version']) {
+            $this->approvals->ensureIndependent($request->user(), $state['editor_ids'] ?? [], 'website draft', 'settings', 'website-state');
+        }
 
         return $this->response($request, $this->website->transition($action, $data['expected_version'], $request->user()->id, $data['revision_id'] ?? null));
     }
@@ -66,8 +72,8 @@ final class WebsiteController extends Controller
     private function capabilities(Request $request): array
     {
         $result = [];
-        foreach (['read', 'write', 'review', 'approve', 'publish'] as $action) {
-            $result[$action] = $this->access->can($request->user(), 'pages.'.$action);
+        foreach (['read' => 'read', 'write' => 'write', 'review' => 'write', 'approve' => 'approve', 'publish' => 'publish'] as $action => $ability) {
+            $result[$action] = $this->access->can($request->user(), 'pages.'.$ability);
         }
 
         return $result;

@@ -10,13 +10,14 @@ use App\Domain\Publishing\DocumentExport;
 use App\Domain\Publishing\Seo;
 use App\Http\Controllers\Controller;
 use App\Support\Access;
+use App\Support\Approvals;
 use App\Support\Audit;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 final class ContentController extends Controller
 {
-    public function __construct(private RecordStore $store, private ContentRepository $content, private Access $access, private Seo $seo, private Audit $audit) {}
+    public function __construct(private RecordStore $store, private ContentRepository $content, private Access $access, private Seo $seo, private Audit $audit, private Approvals $approvals) {}
 
     private function collection(Request $request): string
     {
@@ -76,10 +77,13 @@ final class ContentController extends Controller
         $collection = $this->collection($request);
         $record = $this->content->find($collection, $id);
         $ability = match ($action) {
-            'review' => 'write', 'approve' => 'review', 'publish', 'unpublish', 'archive' => $collection === 'pages' ? 'publish' : 'write', default => 'write'
+            'review' => 'write', 'approve' => 'approve', 'publish', 'unpublish', 'archive' => $collection === 'pages' ? 'publish' : 'write', default => 'write'
         };
         $this->access->authorize($request->user(), $collection.'.'.$ability, $record);
         $request->validate(['expected_version' => ['required', 'integer', 'min:1']]);
+        if ($action === 'approve' && $collection === 'pages' && $record['version'] === (int) $request->input('expected_version')) {
+            $this->approvals->ensureIndependent($request->user(), $this->content->contributors($collection, $record), 'page', $collection, $id);
+        }
         $record = $this->content->transition($collection, $id, $action, (int) $request->input('expected_version'), $request->user()->id);
 
         return response()->json(['data' => $this->content->response($record)]);
@@ -177,7 +181,7 @@ final class ContentController extends Controller
                 'locale' => ['sometimes', 'string', 'regex:/^[a-z]{2,3}(?:-[A-Z]{2})?$/'],
                 'translation_group' => ['nullable', 'string', 'max:100', 'regex:/^[a-zA-Z0-9_-]+$/'],
                 'summary' => ['sometimes', 'nullable', 'string', 'max:1000'], 'seo' => ['sometimes', 'array'],
-                'author_name' => ['nullable', 'string', 'max:150'], 'reviewer_name' => ['nullable', 'string', 'max:150'],
+                'author_name' => ['nullable', 'string', 'max:150'],
                 'jurisdiction' => ['nullable', 'string', 'max:150'], 'review_due_at' => ['nullable', 'date_format:Y-m-d'],
                 'sources' => ['sometimes', 'array', 'max:50'], 'sources.*.title' => ['required', 'string', 'max:200'], 'sources.*.url' => ['required', 'url:http,https', 'max:2000'],
             ];
